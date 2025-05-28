@@ -215,7 +215,7 @@ def validate_extracted_data(raw_data: dict) -> ExtractionResult:
         # Create a model with raw data for partial results
         try:
             # Try to create model with minimal validation
-            partial_data = WorkersCompensationData.parse_obj(raw_data)
+            partial_data = WorkersCompensationData.model_validate(raw_data)
         except Exception as e2:
             print(e2)
             # If that fails too, create empty model

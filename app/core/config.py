@@ -43,7 +43,7 @@ class Settings(BaseSettings):
         super().__init__(**kwargs)
 
 
-# @lru_cache()
+@lru_cache()
 def get_settings() -> Settings:
     """Get cached settings instance"""
     return Settings()
