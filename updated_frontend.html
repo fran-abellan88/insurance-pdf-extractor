@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insurance PDF Extractor - MVP Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            border: 1px solid #e9ecef;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 0;
+            min-height: 600px;
+        }
+
+        .upload-section {
+            background: #f8f9fa;
+            padding: 40px;
+            border-right: 1px solid #dee2e6;
+        }
+
+        .form-section {
+            padding: 40px;
+            overflow-y: auto;
+            max-height: 85vh;
+        }
+
+        .upload-area {
+            border: 3px dashed #ced4da;
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: white;
+        }
+
+        .upload-area.dragover {
+            border-color: #6c757d;
+            background: #f1f3f4;
+        }
+
+        .upload-area.processing {
+            border-color: #dc3545;
+            background: #fff5f5;
+        }
+
+        .upload-area.success {
+            border-color: #28a745;
+            background: #f8fff9;
+        }
+
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            background: #6c757d;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+
+        .upload-text h3 {
+            font-size: 1.5rem;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+
+        .upload-text p {
+            color: #6c757d;
+            margin-bottom: 20px;
+        }
+
+        .upload-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            background: #5a6268;
+        }
+
+        .processing-indicator {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .success-message {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            color: #155724;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f8f9fa;
+            border-top: 4px solid #dc3545;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .form-container h2 {
+            font-size: 1.8rem;
+            color: #495057;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            column-gap: 30px;
+        }
+
+        .form-group {
+            position: relative;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #6c757d;
+            box-shadow: 0 0 0 3px rgba(108, 117, 125, 0.1);
+        }
+
+        .field-container {
+            position: relative;
+        }
+
+        .confidence-indicator {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: none;
+            cursor: pointer;
+        }
+
+        .confidence-high {
+            background: #28a745;
+        }
+
+        .confidence-medium {
+            background: #ffc107;
+        }
+
+        .confidence-low {
+            background: #dc3545;
+        }
+
+        .field-extracted {
+            border-color: #28a745 !important;
+            background: #f8fff9 !important;
+        }
+
+        .field-failed {
+            border-color: #dc3545 !important;
+            background: #fff5f5 !important;
+        }
+
+        .field-warning {
+            border-color: #ffc107 !important;
+            background: #fffdf0 !important;
+        }
+
+        /* Tooltip styles */
+        .tooltip {
+            position: absolute;
+            background: #343a40;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            top: -35px;
+            right: 0;
+            transform: translateX(50%);
+        }
+
+        .tooltip:before {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid #343a40;
+        }
+
+        .confidence-indicator:hover+.tooltip,
+        .field-warning-icon:hover+.tooltip {
+            opacity: 1;
+        }
+
+        .field-warning-icon {
+            position: absolute;
+            right: 35px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #ffc107;
+            cursor: pointer;
+            display: none;
+            font-size: 16px;
+        }
+
+        .field-messages {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            display: none;
+        }
+
+        .field-message {
+            padding: 6px 10px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+        }
+
+        .field-message.warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+
+        .field-message.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .field-message.confidence {
+            background: #e2e3e5;
+            border: 1px solid #d6d8db;
+            color: #383d41;
+        }
+
+        .status-bar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-top: 1px solid #dee2e6;
+            display: none;
+        }
+
+        .status-item {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 20px;
+            font-size: 0.9rem;
+        }
+
+        .status-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .success {
+            background: #28a745;
+        }
+
+        .warning {
+            background: #ffc107;
+        }
+
+        .error {
+            background: #dc3545;
+        }
+
+        .alerts {
+            margin-top: 20px;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .upload-section {
+                border-right: none;
+                border-bottom: 1px solid #dee2e6;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .demo-note {
+            background: #e9ecef;
+            border: 1px solid #ced4da;
+            color: #495057;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+
+        .processing-text {
+            color: #dc3545;
+            font-weight: 600;
+        }
+
+        .processing-subtext {
+            color: #6c757d;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Insurance PDF Extractor</h1>
+            <p>AI-Powered Workers' Compensation Quote Processing</p>
+        </div>
+
+        <div class="main-content">
+            <div class="upload-section">
+                <div class="demo-note">
+                    <strong>MVP Demo</strong><br>
+                    Upload a Workers' Compensation insurance quote PDF to see AI extraction in action.
+                </div>
+
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📄</div>
+                    <div class="upload-text">
+                        <h3>Upload PDF Quote</h3>
+                        <p>Drag & drop or click to select a PDF file</p>
+                        <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                            Choose File
+                        </button>
+                    </div>
+                </div>
+
+                <div class="processing-indicator" id="processingIndicator">
+                    <div class="spinner"></div>
+                    <p class="processing-text">Processing PDF...</p>
+                    <p class="processing-subtext">AI is extracting data from your document</p>
+                </div>
+
+                <div class="success-message" id="successMessage">
+                    <p><strong>✅ PDF uploaded successfully!</strong></p>
+                    <p>Processing your document now...</p>
+                </div>
+
+                <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+            </div>
+
+            <div class="form-section">
+                <div class="form-container">
+                    <h2>📋 Extracted Information</h2>
+
+                    <div class="form-grid" id="formGrid">
+                        <div class="form-group">
+                            <label for="quote_number">Quote Number *</label>
+                            <div class="field-container">
+                                <input type="text" id="quote_number" name="quote_number"
+                                    placeholder="Will be extracted from PDF...">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="policy_effective_date">Policy Effective Date *</label>
+                            <div class="field-container">
+                                <input type="text" id="policy_effective_date" name="policy_effective_date"
+                                    placeholder="MM/DD/YYYY">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="policy_expiration_date">Policy Expiration Date *</label>
+                            <div class="field-container">
+                                <input type="text" id="policy_expiration_date" name="policy_expiration_date"
+                                    placeholder="MM/DD/YYYY">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="named_insured_name">Named Insured Name *</label>
+                            <div class="field-container">
+                                <input type="text" id="named_insured_name" name="named_insured_name"
+                                    placeholder="Company or individual name">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="named_insured_address">Named Insured Address *</label>
+                            <div class="field-container">
+                                <textarea id="named_insured_address" name="named_insured_address" rows="2"
+                                    placeholder="Full address"></textarea>
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="issuing_carrier">Issuing Carrier</label>
+                            <div class="field-container">
+                                <input type="text" id="issuing_carrier" name="issuing_carrier"
+                                    placeholder="Insurance carrier name">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="estimated_premium_amount">Estimated Premium Amount</label>
+                            <div class="field-container">
+                                <input type="text" id="estimated_premium_amount" name="estimated_premium_amount"
+                                    placeholder="$0.00">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="commission">Commission</label>
+                            <div class="field-container">
+                                <input type="text" id="commission" name="commission" placeholder="Percentage or amount">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="taxes">Taxes</label>
+                            <div class="field-container">
+                                <input type="text" id="taxes" name="taxes" placeholder="Tax amount">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tria">TRIA Coverage</label>
+                            <div class="field-container">
+                                <input type="text" id="tria" name="tria" placeholder="Included/Excluded">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="waiver_of_subrogation_type">Waiver of Subrogation</label>
+                            <div class="field-container">
+                                <input type="text" id="waiver_of_subrogation_type" name="waiver_of_subrogation_type"
+                                    placeholder="Included/Excluded">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="workers_comp_each_accident_limit">Each Accident Limit</label>
+                            <div class="field-container">
+                                <input type="text" id="workers_comp_each_accident_limit"
+                                    name="workers_comp_each_accident_limit" placeholder="Coverage limit">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="workers_comp_disease_each_employee">Disease Limit (Per Employee)</label>
+                            <div class="field-container">
+                                <input type="text" id="workers_comp_disease_each_employee"
+                                    name="workers_comp_disease_each_employee" placeholder="Coverage limit">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="workers_comp_disease_policy_limit">Disease Limit (Policy)</label>
+                            <div class="field-container">
+                                <input type="text" id="workers_comp_disease_policy_limit"
+                                    name="workers_comp_disease_policy_limit" placeholder="Coverage limit">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="workers_comp_exclusion_description">Workers Comp Exclusions</label>
+                            <div class="field-container">
+                                <input type="text" id="workers_comp_exclusion_description"
+                                    name="workers_comp_exclusion_description" placeholder="Exclusion details">
+                                <div class="confidence-indicator"></div>
+                                <div class="field-warning-icon">⚠️</div>
+                                <div class="tooltip"></div>
+                            </div>
+                            <div class="field-messages"></div>
+                        </div>
+                    </div>
+
+                    <div class="alerts" id="alertsContainer"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-bar" id="statusBar">
+            <div class="status-item">
+                <div class="status-icon success"></div>
+                <span id="successCount">0 fields extracted</span>
+            </div>
+            <div class="status-item">
+                <div class="status-icon warning"></div>
+                <span id="warningCount">0 warnings</span>
+            </div>
+            <div class="status-item">
+                <div class="status-icon error"></div>
+                <span id="errorCount">0 failed</span>
+            </div>
+            <div style="float: right;">
+                <span id="processingTime">Processing time: --</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        const API_KEY = 'bla'; // Update this to match your API key
+
+        // Elements
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const processingIndicator = document.getElementById('processingIndicator');
+        const successMessage = document.getElementById('successMessage');
+        const statusBar = document.getElementById('statusBar');
+        const alertsContainer = document.getElementById('alertsContainer');
+
+        // Upload area event listeners
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                handleFileUpload(files[0]);
+            } else {
+                showAlert('Please upload a PDF file.', 'error');
+            }
+        });
+
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+
+        async function handleFileUpload(file) {
+            // Reset UI
+            resetForm();
+            showUploadSuccess(true);
+
+            // Show processing immediately after success message
+            setTimeout(() => {
+                showUploadSuccess(false);
+                showProcessing(true);
+            }, 1000);
+
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('model', 'gemini-1.5-flash');
+            formData.append('include_confidence', 'true');
+
+            try {
+                // Wait a bit to ensure processing indicator is visible
+                await new Promise(resolve => setTimeout(resolve, 1200));
+
+                const response = await fetch(`${API_BASE_URL}/api/v1/extract`, {
+                    method: 'POST',
+                    headers: {
+                        'X-API-Key': API_KEY
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    populateForm(data);
+                    showStatus(data);
+                    showAlert('PDF processed successfully!', 'success');
+                } else {
+                    showAlert(`Error: ${data.detail || 'Unknown error occurred'}`, 'error');
+                }
+            } catch (error) {
+                console.error('API Error:', error);
+                showAlert('Failed to connect to the API. Make sure the backend is running on localhost:8000', 'error');
+            } finally {
+                showProcessing(false);
+            }
+        }
+
+        function showUploadSuccess(show) {
+            if (show) {
+                uploadArea.classList.add('success');
+                successMessage.classList.remove('hidden');
+            } else {
+                uploadArea.classList.remove('success');
+                successMessage.classList.add('hidden');
+            }
+        }
+
+        function showProcessing(show) {
+            if (show) {
+                uploadArea.classList.add('processing');
+                processingIndicator.classList.remove('hidden');
+            } else {
+                uploadArea.classList.remove('processing');
+                processingIndicator.classList.add('hidden');
+            }
+        }
+
+        function resetForm() {
+            // Clear all form inputs
+            document.querySelectorAll('input, textarea').forEach(input => {
+                input.value = '';
+                input.className = input.className.replace(/field-\w+/g, '');
+            });
+
+            // Hide confidence indicators and warning icons
+            document.querySelectorAll('.confidence-indicator').forEach(indicator => {
+                indicator.style.display = 'none';
+                indicator.className = 'confidence-indicator';
+            });
+
+            document.querySelectorAll('.field-warning-icon').forEach(icon => {
+                icon.style.display = 'none';
+            });
+
+            // Clear field messages
+            document.querySelectorAll('.field-messages').forEach(messages => {
+                messages.innerHTML = '';
+                messages.style.display = 'none';
+            });
+
+            // Clear alerts
+            alertsContainer.innerHTML = '';
+            statusBar.classList.add('hidden');
+        }
+
+        function populateForm(data) {
+            const extractedData = data.extracted_data || {};
+            const confidenceScores = data.confidence_scores || {};
+            const failedFields = data.failed_fields || [];
+            const warnings = data.warnings || [];
+            const fieldWarnings = data.field_warnings || {};
+
+            // Populate form fields
+            Object.keys(extractedData).forEach(fieldName => {
+                const input = document.getElementById(fieldName);
+                if (input) {
+                    const value = extractedData[fieldName];
+                    const confidence = confidenceScores[fieldName];
+                    const fieldContainer = input.closest('.field-container');
+                    const messagesContainer = input.closest('.form-group').querySelector('.field-messages');
+
+                    // Handle arrays (like issuing_carrier)
+                    if (Array.isArray(value)) {
+                        input.value = value.join(', ');
+                    } else {
+                        input.value = value || '';
+                    }
+
+                    // Apply field styling and show indicators
+                    if (failedFields.includes(fieldName)) {
+                        input.classList.add('field-failed');
+                        showFieldMessage(messagesContainer, 'Field could not be extracted', 'error');
+                    } else if (value && value !== 'EMPTY VALUE') {
+                        input.classList.add('field-extracted');
+
+                        // Show confidence indicator
+                        const indicator = fieldContainer.querySelector('.confidence-indicator');
+                        const tooltip = fieldContainer.querySelector('.tooltip');
+
+                        if (indicator && confidence !== undefined) {
+                            indicator.style.display = 'block';
+
+                            if (confidence >= 0.8) {
+                                indicator.classList.add('confidence-high');
+                                tooltip.textContent = `High confidence: ${Math.round(confidence * 100)}%`;
+                            } else if (confidence >= 0.6) {
+                                indicator.classList.add('confidence-medium');
+                                tooltip.textContent = `Medium confidence: ${Math.round(confidence * 100)}%`;
+                                input.classList.add('field-warning');
+                                showFieldMessage(messagesContainer, `Medium confidence extraction (${Math.round(confidence * 100)}%)`, 'confidence');
+                            } else {
+                                indicator.classList.add('confidence-low');
+                                tooltip.textContent = `Low confidence: ${Math.round(confidence * 100)}%`;
+                                input.classList.add('field-warning');
+                                showFieldMessage(messagesContainer, `Low confidence extraction (${Math.round(confidence * 100)}%) - please verify`, 'warning');
+                            }
+                        }
+
+                        // Show field-specific warnings
+                        if (fieldWarnings[fieldName]) {
+                            const warningIcon = fieldContainer.querySelector('.field-warning-icon');
+                            if (warningIcon) {
+                                warningIcon.style.display = 'block';
+                                const tooltip = fieldContainer.querySelector('.tooltip');
+                                tooltip.textContent = fieldWarnings[fieldName];
+                            }
+                            showFieldMessage(messagesContainer, fieldWarnings[fieldName], 'warning');
+                        }
+                    }
+                }
+            });
+
+            // Show general warnings
+            if (warnings.length > 0) {
+                warnings.forEach(warning => {
+                    showAlert(warning, 'warning');
+                });
+            }
+
+            // Show any errors for failed fields
+            if (failedFields.length > 0) {
+                showAlert(`Some fields could not be extracted: ${failedFields.join(', ')}`, 'error');
+            }
+        }
+
+        function showFieldMessage(container, message, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `field-message ${type}`;
+            messageDiv.textContent = message;
+            container.appendChild(messageDiv);
+            container.style.display = 'block';
+        }
+
+        function showStatus(data) {
+            const extractedData = data.extracted_data || {};
+            const failedFields = data.failed_fields || [];
+            const warnings = data.warnings || [];
+
+            const successCount = Object.keys(extractedData).filter(key =>
+                extractedData[key] && extractedData[key] !== 'EMPTY VALUE'
+            ).length;
+
+            document.getElementById('successCount').textContent = `${successCount} fields extracted`;
+            document.getElementById('warningCount').textContent = `${warnings.length} warnings`;
+            document.getElementById('errorCount').textContent = `${failedFields.length} failed`;
+            document.getElementById('processingTime').textContent =
+                `Processing time: ${(data.processing_time || 0).toFixed(1)}s`;
+
+            statusBar.classList.remove('hidden');
+        }
+
+        function showAlert(message, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alertsContainer.appendChild(alert);
+        }
+
+        // Initialize
+        console.log('Insurance PDF Extractor MVP loaded');
+        console.log('Backend should be running on:', API_BASE_URL);
+        console.log('Using API key:', API_KEY);
+    </script>
+</body>
+
+</html>

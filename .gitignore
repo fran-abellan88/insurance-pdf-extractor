@@ -172,3 +172,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+test_pdfs/
+.DS_Store
+.flake8
+.vscode/
+create_test_pdfs.py
