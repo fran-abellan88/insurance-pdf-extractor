@@ -5,7 +5,7 @@ Data validation utilities
 import logging
 import re
 from datetime import datetime
-from typing import Any, List, Optional, Union
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 

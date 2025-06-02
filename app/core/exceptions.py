@@ -4,7 +4,6 @@ Custom exceptions and exception handlers
 
 import logging
 import traceback
-from typing import Union
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError

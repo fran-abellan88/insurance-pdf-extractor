@@ -6,8 +6,7 @@ import json
 import logging
 import re
 import time
-from io import BytesIO
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import google.generativeai as genai
 

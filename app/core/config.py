@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
-from dotenv import find_dotenv, load_dotenv
+from dotenv import load_dotenv
 from pydantic import ConfigDict, Field
 from pydantic_settings import BaseSettings
 

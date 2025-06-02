@@ -13,6 +13,7 @@ class ModelType(str, Enum):
 
     FLASH = "gemini-1.5-flash"
     PRO = "gemini-1.5-pro"
+    FLASH_2_5_PREVIEW = "gemini-2.5-flash-preview-05-20"
 
 
 class ExtractionRequest(BaseModel):
@@ -31,7 +32,6 @@ class ExtractionRequest(BaseModel):
     )
 
     max_tokens: Optional[int] = Field(default=4096, ge=1, le=8192, description="Maximum tokens for the response")
-
     include_confidence: bool = Field(default=False, description="Whether to include confidence scores in the response")
 
     @field_validator("prompt_version")

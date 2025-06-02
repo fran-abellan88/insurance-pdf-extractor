@@ -55,6 +55,7 @@ limiter = Limiter(key_func=get_remote_address)
     **Models Available**:
     - `gemini-1.5-flash`: Faster, good for most cases
     - `gemini-1.5-pro`: More accurate, slower
+    - `gemini-2.5-flash-preview`: Placeholder
     """,
 )
 @limiter.limit("10/minute")
@@ -97,7 +98,7 @@ async def extract_pdf_data(
             return ExtractionResponse(**result)
         elif result["status"] == "partial_success":
             return JSONResponse(
-                status_code=206, content=PartialExtractionResponse(**result).model_dump(mode='json')
+                status_code=206, content=PartialExtractionResponse(**result).model_dump(mode="json")
             )  # Partial Content
         else:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Extraction failed")
@@ -158,6 +159,13 @@ async def get_available_models(current_user: dict = Depends(get_current_user)):
                 "name": "gemini-1.5-pro",
                 "display_name": "Gemini 1.5 Pro",
                 "description": "More accurate model with better reasoning capabilities",
+                "max_tokens": 8192,
+                "recommended_for": ["complex_documents", "high_accuracy_required"],
+            },
+            {
+                "name": "gemini-2.5-flash-preview-05-20",
+                "display_name": "Gemini 2.5 Flash Preview",
+                "description": "Placeholder",
                 "max_tokens": 8192,
                 "recommended_for": ["complex_documents", "high_accuracy_required"],
             },

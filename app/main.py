@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi_mcp import FastApiMCP
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -68,6 +69,12 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+# Add MCP server to the FastAPI app
+mcp = FastApiMCP(app)
+
+# Mount the MCP server to the FastAPI app
+mcp.mount()
 
 if __name__ == "__main__":
     import uvicorn

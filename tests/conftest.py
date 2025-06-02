@@ -2,10 +2,7 @@
 Test configuration and fixtures
 """
 
-import asyncio
-import json
-from io import BytesIO
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
