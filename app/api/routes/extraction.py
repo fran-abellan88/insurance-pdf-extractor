@@ -5,7 +5,16 @@ API routes for PDF extraction
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -13,7 +22,11 @@ from slowapi.util import get_remote_address
 from app.core.exceptions import ExtractionError, FileProcessingError, GeminiAPIError
 from app.core.security import get_current_user
 from app.models.request import ModelType
-from app.models.response import ErrorResponse, ExtractionResponse, PartialExtractionResponse
+from app.models.response import (
+    ErrorResponse,
+    ExtractionResponse,
+    PartialExtractionResponse,
+)
 from app.services.pdf_processor import pdf_processor
 
 logger = logging.getLogger(__name__)
@@ -43,7 +56,8 @@ limiter = Limiter(key_func=get_remote_address)
     1. Validate the PDF file
     2. Extract text using Gemini AI
     3. Parse and validate the extracted data
-    4. Return structured JSON with insurance information
+    4. Store the results locally
+    5. Return structured JSON with insurance information
 
     **Authentication**: Requires X-API-Key header
 
@@ -56,6 +70,9 @@ limiter = Limiter(key_func=get_remote_address)
     - `gemini-1.5-flash`: Faster, good for most cases
     - `gemini-1.5-pro`: More accurate, slower
     - `gemini-2.5-flash-preview`: Placeholder
+
+    **Token Usage**: Enable `include_token_usage` to get detailed token consumption metrics and cost estimates.
+    **Confidence Scores**: Enable `include_confidence` to get confidence scores for each extracted field.
     """,
 )
 @limiter.limit("10/minute")
@@ -67,6 +84,7 @@ async def extract_pdf_data(
     temperature: float = Form(default=0.1, ge=0.0, le=1.0, description="AI model temperature"),
     max_tokens: int = Form(default=4096, ge=1, le=8192, description="Maximum response tokens"),
     include_confidence: bool = Form(default=False, description="Include confidence scores"),
+    include_token_usage: bool = Form(default=False, description="Include detailed token usage and cost estimates"),
     current_user: dict = Depends(get_current_user),
 ):
     """Extract structured data from insurance PDF"""
@@ -91,7 +109,38 @@ async def extract_pdf_data(
             temperature=temperature,
             max_tokens=max_tokens,
             include_confidence=include_confidence,
+            include_token_usage=include_token_usage,
         )
+
+        # Store the extraction results locally
+        try:
+            from app.services.storage import storage_service
+
+            extraction_id = storage_service.store_extraction(
+                filename=file.filename,
+                file_size=len(pdf_content),
+                status=result["status"],
+                model_used=result["model_used"],
+                prompt_version=result["prompt_version"],
+                processing_time=result["processing_time"],
+                extracted_data=result["extracted_data"],
+                confidence_scores=result.get("confidence_scores"),
+                failed_fields=result.get("failed_fields"),
+                warnings=result.get("warnings"),
+                user_key=current_user.get("key", "unknown"),
+            )
+
+            # Add extraction ID to the response
+            result["extraction_id"] = extraction_id
+            logger.info(f"Stored extraction results with ID: {extraction_id}")
+
+        except Exception as storage_error:
+            # Log storage error but don't fail the extraction
+            logger.error(f"Failed to store extraction results: {storage_error}")
+            # Optionally add a warning to the response
+            if "warnings" not in result:
+                result["warnings"] = []
+            result["warnings"].append("Results could not be stored locally")
 
         # Determine response type based on result status
         if result["status"] == "success":

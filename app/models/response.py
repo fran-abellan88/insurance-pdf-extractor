@@ -1,11 +1,43 @@
 """
-Pydantic models for API responses
+Pydantic models for API responses with token usage support
 """
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
+
+
+class TokenUsage(BaseModel):
+    """Token usage information"""
+
+    input_tokens: Optional[int] = Field(default=None, description="Number of input tokens (prompt + PDF)")
+    prompt_token_count: Optional[int] = Field(default=None, description="Tokens used for the prompt")
+    candidates_token_count: Optional[int] = Field(default=None, description="Tokens generated in response")
+    total_token_count: Optional[int] = Field(default=None, description="Total tokens used")
+    estimated_cost: Optional[float] = Field(default=None, description="Estimated cost in USD")
+    cost_breakdown: Optional[Dict[str, Any]] = Field(default=None, description="Detailed cost breakdown")
+    error: Optional[str] = Field(default=None, description="Error message if token counting failed")
+
+
+class TokenMetrics(BaseModel):
+    """Detailed token metrics for the metrics section"""
+
+    input_tokens: int = Field(description="Number of input tokens")
+    output_tokens: int = Field(description="Number of output tokens")
+    total_tokens: int = Field(description="Total number of tokens")
+
+
+class ExtractionMetrics(BaseModel):
+    """Detailed metrics about the extraction process"""
+
+    gemini_processing_time: float = Field(description="Time spent on Gemini API call")
+    validation_time: float = Field(description="Time spent on data validation")
+    total_fields: int = Field(description="Total number of fields expected")
+    extracted_fields: int = Field(description="Number of fields successfully extracted")
+    validation_errors: int = Field(description="Number of validation errors")
+    warnings: int = Field(description="Number of warnings")
+    token_metrics: Optional[TokenMetrics] = Field(default=None, description="Token usage metrics")
 
 
 class ExtractionResponse(BaseModel):
@@ -16,11 +48,36 @@ class ExtractionResponse(BaseModel):
     processing_time: float = Field(description="Processing time in seconds")
     model_used: str = Field(description="Gemini model used for extraction")
     prompt_version: str = Field(description="Prompt version used")
+    file_info: Optional[Dict[str, Any]] = Field(default=None, description="Information about the processed file")
     confidence_scores: Optional[Dict[str, float]] = Field(
         default=None, description="Confidence scores for each field (if requested)"
     )
+    token_usage: Optional[TokenUsage] = Field(default=None, description="Token usage information (if requested)")
     warnings: Optional[List[str]] = Field(default=None, description="List of warnings during processing")
     failed_fields: Optional[List[str]] = Field(default=None, description="List of fields that failed extraction")
+    metrics: Optional[ExtractionMetrics] = Field(default=None, description="Detailed extraction metrics")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now().isoformat(), description="Timestamp of the extraction"
+    )
+
+
+class PartialExtractionResponse(BaseModel):
+    """Response model for partial extraction (some fields failed)"""
+
+    status: str = Field(default="partial_success", description="Response status")
+    extracted_data: Dict[str, Any] = Field(description="Successfully extracted data")
+    failed_fields: List[str] = Field(description="Fields that failed extraction")
+    errors: List[str] = Field(description="Error messages for failed fields")
+    processing_time: float = Field(description="Processing time in seconds")
+    model_used: str = Field(description="Gemini model used for extraction")
+    prompt_version: str = Field(description="Prompt version used")
+    file_info: Optional[Dict[str, Any]] = Field(default=None, description="Information about the processed file")
+    confidence_scores: Optional[Dict[str, float]] = Field(
+        default=None, description="Confidence scores for each field (if requested)"
+    )
+    token_usage: Optional[TokenUsage] = Field(default=None, description="Token usage information (if requested)")
+    warnings: Optional[List[str]] = Field(default=None, description="List of warnings during processing")
+    metrics: Optional[ExtractionMetrics] = Field(default=None, description="Detailed extraction metrics")
     timestamp: str = Field(
         default_factory=lambda: datetime.now().isoformat(), description="Timestamp of the extraction"
     )
@@ -34,22 +91,6 @@ class ErrorResponse(BaseModel):
     message: str = Field(description="Human-readable error message")
     details: Optional[Dict[str, Any]] = Field(default=None, description="Additional error details")
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat(), description="Timestamp of the error")
-
-
-class PartialExtractionResponse(BaseModel):
-    """Response model for partial extraction (some fields failed)"""
-
-    status: str = Field(default="partial_success", description="Response status")
-    extracted_data: Dict[str, Any] = Field(description="Successfully extracted data")
-    failed_fields: List[str] = Field(description="Fields that failed extraction")
-    errors: List[str] = Field(description="Error messages for failed fields")
-    processing_time: float = Field(description="Processing time in seconds")
-    model_used: str = Field(description="Gemini model used for extraction")
-    prompt_version: str = Field(description="Prompt version used")
-    warnings: Optional[List[str]] = Field(default=None, description="List of warnings during processing")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.now().isoformat(), description="Timestamp of the extraction"
-    )
 
 
 class HealthResponse(BaseModel):
@@ -74,17 +115,7 @@ class ValidationSummary(BaseModel):
     success_rate: float = Field(description="Success rate as percentage")
 
 
-class ExtractionMetrics(BaseModel):
-    """Detailed metrics about the extraction process"""
-
-    file_info: Dict[str, Any] = Field(description="Information about the processed file")
-    processing_stages: Dict[str, float] = Field(description="Time taken for each processing stage")
-    api_calls: int = Field(description="Number of API calls made")
-    tokens_used: int = Field(description="Number of tokens used")
-    validation_summary: ValidationSummary = Field(description="Validation results summary")
-
-
 class DetailedExtractionResponse(ExtractionResponse):
     """Extended response with detailed metrics"""
 
-    metrics: Optional[ExtractionMetrics] = Field(default=None, description="Detailed extraction metrics")
+    validation_summary: Optional[ValidationSummary] = Field(default=None, description="Validation results summary")

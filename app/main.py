@@ -12,7 +12,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from app.api.routes import extraction, health
+from app.api.routes import extraction, health, storage
 from app.core.config import get_settings
 from app.core.exceptions import setup_exception_handlers
 
@@ -28,6 +28,15 @@ limiter = Limiter(key_func=get_remote_address)
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     logger.info("Starting Insurance PDF Extractor API")
+
+    # Initialize storage service on startup
+    try:
+        from app.services.storage import storage_service
+
+        logger.info("Storage service initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize storage service: {e}")
+
     yield
     logger.info("Shutting down Insurance PDF Extractor API")
 
@@ -64,6 +73,7 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(health.router, prefix="/health", tags=["Health"])
     app.include_router(extraction.router, prefix="/api/v1", tags=["Extraction"])
+    app.include_router(storage.router, prefix="/api/v1/storage", tags=["Storage"])
 
     return app
 

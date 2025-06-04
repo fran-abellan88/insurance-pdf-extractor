@@ -63,7 +63,7 @@ async def get_api_key(api_key: str = Security(api_key_header)) -> str:
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    logger.info(f"Valid API key used: {api_key[:8]}...")
+    logger.info(f"Valid API key used: {api_key[:3]}...")
     return api_key
 
 

@@ -1,5 +1,5 @@
 """
-Gemini AI service for PDF processing
+Gemini AI service for PDF processing with usage metadata tracking
 """
 
 import json
@@ -64,7 +64,7 @@ class GeminiService:
             max_tokens: Maximum tokens for response
 
         Returns:
-            Dict containing extracted data
+            Dict containing extracted data and usage metadata
 
         Raises:
             GeminiAPIError: If API call fails
@@ -133,20 +133,36 @@ class GeminiService:
 
                 extracted_data = self._extract_json_from_response(response.text)
 
-                return {
+                # Prepare result with usage metadata
+                result = {
                     "extracted_data": extracted_data,
                     "processing_time": processing_time,
                     "model_used": model_name,
                     "response_text": response.text[:500] + "..." if len(response.text) > 500 else response.text,
                 }
 
+                # Add usage metadata if available
+                if hasattr(response, "usage_metadata") and response.usage_metadata:
+                    usage_metadata = response.usage_metadata
+                    result["usage_metadata"] = {
+                        "prompt_token_count": getattr(usage_metadata, "prompt_token_count", 0),
+                        "candidates_token_count": getattr(usage_metadata, "candidates_token_count", 0),
+                        "total_token_count": getattr(usage_metadata, "total_token_count", 0),
+                    }
+                    logger.info(
+                        f"Token usage - Input: {result['usage_metadata']['prompt_token_count']}, "
+                        f"Output: {result['usage_metadata']['candidates_token_count']}, "
+                        f"Total: {result['usage_metadata']['total_token_count']}"
+                    )
+
+                return result
+
             except Exception as e:
                 print(e)
                 # If temp file creation failed, temp_fd might still be open
                 try:
                     os.close(temp_fd)
-                except Exception as e:
-                    print(e)
+                except Exception:
                     pass
                 raise
 

@@ -178,3 +178,4 @@ test_pdfs/
 .flake8
 .vscode/
 create_test_pdfs.py
+data/

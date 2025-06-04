@@ -1,5 +1,5 @@
 """
-Pydantic models for API requests
+Pydantic models for API requests with token usage support
 """
 
 from enum import Enum
@@ -32,7 +32,12 @@ class ExtractionRequest(BaseModel):
     )
 
     max_tokens: Optional[int] = Field(default=4096, ge=1, le=8192, description="Maximum tokens for the response")
+
     include_confidence: bool = Field(default=False, description="Whether to include confidence scores in the response")
+
+    include_token_usage: bool = Field(
+        default=False, description="Whether to include detailed token usage metrics and cost estimates"
+    )
 
     @field_validator("prompt_version")
     def validate_prompt_version(cls, v):
@@ -80,4 +85,18 @@ class FileUpload(BaseModel):
         """Validate filename"""
         if not v.lower().endswith(".pdf"):
             raise ValueError("File must have .pdf extension")
+        return v
+
+
+class TokenUsageRequest(BaseModel):
+    """Request model for token usage estimation"""
+
+    model: ModelType = Field(default=ModelType.FLASH, description="Gemini model to estimate tokens for")
+    prompt_version: Optional[str] = Field(default=None, description="Prompt version to use")
+
+    @field_validator("prompt_version")
+    def validate_prompt_version(cls, v):
+        """Validate prompt version format"""
+        if v is not None and not v.startswith("v"):
+            raise ValueError('Prompt version must start with "v" (e.g., "v2")')
         return v

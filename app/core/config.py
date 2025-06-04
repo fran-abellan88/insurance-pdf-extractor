@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     max_file_size_mb: int = Field(default=10)
     allowed_file_types: List[str] = Field(default_factory=lambda: [".pdf"])
 
+    # Storage Configuration
+    storage_db_path: str = Field(default="data/extractions.db", description="Path to SQLite database")
+    storage_enabled: bool = Field(default=True, description="Enable local storage of extractions")
+    storage_cleanup_days: int = Field(default=90, description="Days to keep extraction records")
+    storage_auto_cleanup: bool = Field(default=False, description="Enable automatic cleanup of old records")
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
