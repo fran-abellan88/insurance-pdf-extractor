@@ -12,7 +12,9 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from app.api.routes import extraction, health, storage
+from app.api.routes import analytics, extraction, health, storage
+
+# from app.api.routes.analytics import router as analytics_router
 from app.core.config import get_settings
 from app.core.exceptions import setup_exception_handlers
 
@@ -34,6 +36,23 @@ async def lifespan(app: FastAPI):
         from app.services.storage import storage_service
 
         logger.info("Storage service initialized")
+
+        # Check if database needs migration (optional - for development)
+        try:
+            with storage_service._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(extractions)")
+                columns = [column[1] for column in cursor.fetchall()]
+
+                if "input_tokens" not in columns:
+                    logger.warning("Database appears to need migration for token usage tracking")
+                    logger.warning("Run: python scripts/migrate_database.py")
+                else:
+                    logger.info("Database schema is up to date with token usage tracking")
+
+        except Exception as e:
+            logger.warning(f"Could not check database schema: {e}")
+
     except Exception as e:
         logger.error(f"Failed to initialize storage service: {e}")
 
@@ -74,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/health", tags=["Health"])
     app.include_router(extraction.router, prefix="/api/v1", tags=["Extraction"])
     app.include_router(storage.router, prefix="/api/v1/storage", tags=["Storage"])
+    app.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 
     return app
 

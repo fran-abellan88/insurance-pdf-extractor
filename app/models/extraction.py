@@ -14,9 +14,9 @@ class WorkersCompensationData(BaseModel):
 
     quote_number: str = Field(description="Unique quote number for the policy")
     policy_effective_date: str = Field(description="Policy effective date in MM/DD/YYYY format")
-    policy_expiration_date: str = Field(description="Policy expiration date in MM/DD/YYYY format")
-    named_insured_name: str = Field(description="Name of the primary policyholder")
-    named_insured_address: str = Field(description="Address of the primary policyholder")
+    policy_expiration_date: Optional[str] = Field(description="Policy expiration date in MM/DD/YYYY format")
+    named_insured_name: Optional[str] = Field(description="Name of the primary policyholder")
+    named_insured_address: Optional[str] = Field(description="Address of the primary policyholder")
     additional_named_insured_name: Optional[str] = Field(
         default="EMPTY VALUE", description="Additional named insured name or 'Excluded'"
     )

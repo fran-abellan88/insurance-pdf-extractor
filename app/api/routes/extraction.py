@@ -56,7 +56,7 @@ limiter = Limiter(key_func=get_remote_address)
     1. Validate the PDF file
     2. Extract text using Gemini AI
     3. Parse and validate the extracted data
-    4. Store the results locally
+    4. Store the results locally with token usage tracking
     5. Return structured JSON with insurance information
 
     **Authentication**: Requires X-API-Key header
@@ -69,7 +69,7 @@ limiter = Limiter(key_func=get_remote_address)
     **Models Available**:
     - `gemini-1.5-flash`: Faster, good for most cases
     - `gemini-1.5-pro`: More accurate, slower
-    - `gemini-2.5-flash-preview`: Placeholder
+    - `gemini-2.5-flash-preview`: Latest preview model
 
     **Token Usage**: Enable `include_token_usage` to get detailed token consumption metrics and cost estimates.
     **Confidence Scores**: Enable `include_confidence` to get confidence scores for each extracted field.
@@ -87,7 +87,7 @@ async def extract_pdf_data(
     include_token_usage: bool = Form(default=False, description="Include detailed token usage and cost estimates"),
     current_user: dict = Depends(get_current_user),
 ):
-    """Extract structured data from insurance PDF"""
+    """Extract structured data from insurance PDF with enhanced token tracking"""
 
     logger.info(f"PDF extraction request from user {current_user.get('key', 'unknown')}")
 
@@ -112,7 +112,7 @@ async def extract_pdf_data(
             include_token_usage=include_token_usage,
         )
 
-        # Store the extraction results locally
+        # Store the extraction results locally with token usage
         try:
             from app.services.storage import storage_service
 
@@ -128,11 +128,21 @@ async def extract_pdf_data(
                 failed_fields=result.get("failed_fields"),
                 warnings=result.get("warnings"),
                 user_key=current_user.get("key", "unknown"),
+                token_usage=result.get("token_usage"),  # Pass token usage data
             )
 
             # Add extraction ID to the response
             result["extraction_id"] = extraction_id
             logger.info(f"Stored extraction results with ID: {extraction_id}")
+
+            # Log token usage if available
+            if result.get("token_usage") and "error" not in result["token_usage"]:
+                token_info = result["token_usage"]
+                logger.info(
+                    f"Token usage stored - Input: {token_info.get('prompt_token_count', 0)}, "
+                    f"Output: {token_info.get('candidates_token_count', 0)}, "
+                    f"Cost: ${token_info.get('estimated_cost', 0):.6f}"
+                )
 
         except Exception as storage_error:
             # Log storage error but don't fail the extraction

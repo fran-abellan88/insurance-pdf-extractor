@@ -41,12 +41,41 @@ class LocalStorageService:
                     failed_fields TEXT,  -- JSON string
                     warnings TEXT,  -- JSON string
                     user_key TEXT,
+                    input_tokens INTEGER DEFAULT NULL,
+                    output_tokens INTEGER DEFAULT NULL,
+                    total_tokens INTEGER DEFAULT NULL,
+                    estimated_cost REAL DEFAULT NULL,
+                    cost_breakdown TEXT DEFAULT NULL,
+                    token_error TEXT DEFAULT NULL,  -- If token counting failed
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """
             )
 
+            # New table for detailed token metrics
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS token_usage (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    extraction_id INTEGER,
+                    model_name TEXT NOT NULL,
+                    prompt_token_count INTEGER DEFAULT NULL,
+                    candidates_token_count INTEGER DEFAULT NULL,
+                    total_token_count INTEGER DEFAULT NULL,
+                    input_cost REAL DEFAULT NULL,
+                    output_cost REAL DEFAULT NULL,
+                    total_cost REAL DEFAULT NULL,
+                    pricing_per_1k_input REAL DEFAULT NULL,
+                    pricing_per_1k_output REAL DEFAULT NULL,
+                    cost_calculation_method TEXT DEFAULT NULL,  -- 'actual' or 'estimated'
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (extraction_id) REFERENCES extractions (id)
+                )
+            """
+            )
+
+            # Enhanced extraction_fields table (keep existing structure)
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS extraction_fields (
@@ -79,10 +108,51 @@ class LocalStorageService:
 
             conn.execute(
                 """
+                CREATE INDEX IF NOT EXISTS idx_extractions_model_used
+                ON extractions(model_used)
+            """
+            )
+
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_token_usage_extraction_id
+                ON token_usage(extraction_id)
+            """
+            )
+
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_fields_extraction_id
                 ON extraction_fields(extraction_id)
             """
             )
+
+            # Add new columns to existing extractions table if they don't exist
+            self._add_columns_if_not_exist(conn)
+
+    def _add_columns_if_not_exist(self, conn):
+        """Add new token-related columns to existing extractions table"""
+        # Check if token columns exist, add them if they don't
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(extractions)")
+        existing_columns = [column[1] for column in cursor.fetchall()]
+
+        token_columns = [
+            ("input_tokens", "INTEGER DEFAULT NULL"),
+            ("output_tokens", "INTEGER DEFAULT NULL"),
+            ("total_tokens", "INTEGER DEFAULT NULL"),
+            ("estimated_cost", "REAL DEFAULT NULL"),
+            ("cost_breakdown", "TEXT DEFAULT NULL"),
+            ("token_error", "TEXT DEFAULT NULL"),
+        ]
+
+        for column_name, column_def in token_columns:
+            if column_name not in existing_columns:
+                try:
+                    conn.execute(f"ALTER TABLE extractions ADD COLUMN {column_name} {column_def}")
+                    logger.info(f"Added column {column_name} to extractions table")
+                except sqlite3.Error as e:
+                    logger.warning(f"Could not add column {column_name}: {e}")
 
     @contextmanager
     def _get_connection(self):
@@ -107,9 +177,15 @@ class LocalStorageService:
         failed_fields: Optional[List[str]] = None,
         warnings: Optional[List[str]] = None,
         user_key: Optional[str] = None,
+        token_usage: Optional[Dict[str, Any]] = None,  # New parameter
     ) -> int:
         """
-        Store extraction results in the database
+        Store extraction results in the database with token usage
+
+        Args:
+            token_usage: Dictionary containing token usage information
+                Expected keys: input_tokens, output_tokens, total_tokens,
+                              estimated_cost, cost_breakdown, error
 
         Returns:
             The ID of the stored extraction record
@@ -118,14 +194,34 @@ class LocalStorageService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
-                # Insert main extraction record
+                # Extract token usage data
+                input_tokens = None
+                output_tokens = None
+                total_tokens = None
+                estimated_cost = None
+                cost_breakdown_json = None
+                token_error = None
+
+                if token_usage:
+                    input_tokens = token_usage.get("prompt_token_count") or token_usage.get("input_tokens")
+                    output_tokens = token_usage.get("candidates_token_count") or token_usage.get("output_tokens")
+                    total_tokens = token_usage.get("total_token_count") or token_usage.get("total_tokens")
+                    estimated_cost = token_usage.get("estimated_cost")
+                    token_error = token_usage.get("error")
+
+                    if token_usage.get("cost_breakdown"):
+                        cost_breakdown_json = json.dumps(token_usage["cost_breakdown"])
+
+                # Insert main extraction record with token data
                 cursor.execute(
                     """
                     INSERT INTO extractions (
                         filename, file_size, status, model_used, prompt_version,
                         processing_time, extracted_data, confidence_scores,
-                        failed_fields, warnings, user_key
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        failed_fields, warnings, user_key,
+                        input_tokens, output_tokens, total_tokens,
+                        estimated_cost, cost_breakdown, token_error
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         filename,
@@ -139,12 +235,47 @@ class LocalStorageService:
                         json.dumps(failed_fields) if failed_fields else None,
                         json.dumps(warnings) if warnings else None,
                         user_key,
+                        input_tokens,
+                        output_tokens,
+                        total_tokens,
+                        estimated_cost,
+                        cost_breakdown_json,
+                        token_error,
                     ),
                 )
 
                 extraction_id = cursor.lastrowid
 
-                # Insert individual field records
+                # Insert detailed token usage record if available
+                if token_usage and not token_error:
+                    cost_breakdown = token_usage.get("cost_breakdown", {})
+
+                    cursor.execute(
+                        """
+                        INSERT INTO token_usage (
+                            extraction_id, model_name, prompt_token_count,
+                            candidates_token_count, total_token_count,
+                            input_cost, output_cost, total_cost,
+                            pricing_per_1k_input, pricing_per_1k_output,
+                            cost_calculation_method
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                        (
+                            extraction_id,
+                            model_used,
+                            input_tokens,
+                            output_tokens,
+                            total_tokens,
+                            cost_breakdown.get("input_cost"),
+                            cost_breakdown.get("output_cost"),
+                            cost_breakdown.get("total_cost"),
+                            cost_breakdown.get("pricing_per_1k_tokens", {}).get("input"),
+                            cost_breakdown.get("pricing_per_1k_tokens", {}).get("output"),
+                            "actual" if token_usage.get("prompt_token_count") else "estimated",
+                        ),
+                    )
+
+                # Insert individual field records (existing logic)
                 if extracted_data:
                     for field_name, field_value in extracted_data.items():
                         confidence = confidence_scores.get(field_name) if confidence_scores else None
@@ -173,6 +304,44 @@ class LocalStorageService:
         except Exception as e:
             logger.error(f"Failed to store extraction: {e}")
             raise
+
+    def get_extraction_with_token_usage(self, extraction_id: int) -> Optional[Dict[str, Any]]:
+        """Get extraction record with detailed token usage"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Get main extraction record
+                cursor.execute(
+                    """
+                    SELECT * FROM extractions WHERE id = ?
+                """,
+                    (extraction_id,),
+                )
+
+                extraction_row = cursor.fetchone()
+                if not extraction_row:
+                    return None
+
+                extraction = self._row_to_dict(extraction_row)
+
+                # Get detailed token usage
+                cursor.execute(
+                    """
+                    SELECT * FROM token_usage WHERE extraction_id = ?
+                """,
+                    (extraction_id,),
+                )
+
+                token_row = cursor.fetchone()
+                if token_row:
+                    extraction["detailed_token_usage"] = dict(token_row)
+
+                return extraction
+
+        except Exception as e:
+            logger.error(f"Failed to get extraction {extraction_id}: {e}")
+            return None
 
     def get_extraction(self, extraction_id: int) -> Optional[Dict[str, Any]]:
         """Get extraction record by ID"""
@@ -263,8 +432,99 @@ class LocalStorageService:
             logger.error(f"Failed to search extractions: {e}")
             return []
 
+    def get_token_usage_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive token usage and cost statistics"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Overall token statistics
+                cursor.execute(
+                    """
+                    SELECT
+                        COUNT(*) as total_extractions_with_tokens,
+                        SUM(input_tokens) as total_input_tokens,
+                        SUM(output_tokens) as total_output_tokens,
+                        SUM(total_tokens) as total_tokens_used,
+                        SUM(estimated_cost) as total_estimated_cost,
+                        AVG(estimated_cost) as avg_cost_per_extraction,
+                        MIN(estimated_cost) as min_cost,
+                        MAX(estimated_cost) as max_cost
+                    FROM extractions
+                    WHERE input_tokens IS NOT NULL
+                """
+                )
+
+                overall_stats = dict(cursor.fetchone())
+
+                # Statistics by model
+                cursor.execute(
+                    """
+                    SELECT
+                        model_used,
+                        COUNT(*) as extraction_count,
+                        SUM(input_tokens) as total_input_tokens,
+                        SUM(output_tokens) as total_output_tokens,
+                        SUM(estimated_cost) as total_cost,
+                        AVG(estimated_cost) as avg_cost,
+                        AVG(input_tokens) as avg_input_tokens,
+                        AVG(output_tokens) as avg_output_tokens
+                    FROM extractions
+                    WHERE input_tokens IS NOT NULL
+                    GROUP BY model_used
+                    ORDER BY total_cost DESC
+                """
+                )
+
+                model_stats = [dict(row) for row in cursor.fetchall()]
+
+                # Daily cost trends (last 30 days)
+                cursor.execute(
+                    """
+                    SELECT
+                        DATE(created_at) as date,
+                        COUNT(*) as extraction_count,
+                        SUM(estimated_cost) as daily_cost,
+                        SUM(total_tokens) as daily_tokens
+                    FROM extractions
+                    WHERE input_tokens IS NOT NULL
+                        AND created_at >= datetime('now', '-30 days')
+                    GROUP BY DATE(created_at)
+                    ORDER BY date DESC
+                """
+                )
+
+                daily_trends = [dict(row) for row in cursor.fetchall()]
+
+                # Most expensive extractions
+                cursor.execute(
+                    """
+                    SELECT
+                        id, filename, model_used, estimated_cost,
+                        input_tokens, output_tokens, created_at
+                    FROM extractions
+                    WHERE estimated_cost IS NOT NULL
+                    ORDER BY estimated_cost DESC
+                    LIMIT 10
+                """
+                )
+
+                expensive_extractions = [dict(row) for row in cursor.fetchall()]
+
+                return {
+                    "overall_statistics": overall_stats,
+                    "statistics_by_model": model_stats,
+                    "daily_cost_trends": daily_trends,
+                    "most_expensive_extractions": expensive_extractions,
+                    "generated_at": datetime.now().isoformat(),
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to get token usage statistics: {e}")
+            return {}
+
     def get_field_statistics(self) -> Dict[str, Any]:
-        """Get statistics about extracted fields"""
+        """Enhanced field statistics including token usage"""
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -288,7 +548,7 @@ class LocalStorageService:
 
                 status_stats = [{"status": row[0], "count": row[1], "percentage": row[2]} for row in cursor.fetchall()]
 
-                # Field success rates
+                # Field success rates (existing logic)
                 cursor.execute(
                     """
                     SELECT
@@ -309,10 +569,14 @@ class LocalStorageService:
                     for row in cursor.fetchall()
                 ]
 
+                # Token usage summary
+                token_stats = self.get_token_usage_statistics()
+
                 return {
                     "total_extractions": total_extractions,
                     "status_breakdown": status_stats,
                     "field_success_rates": field_stats,
+                    "token_usage_summary": token_stats.get("overall_statistics", {}),
                 }
 
         except Exception as e:
@@ -320,11 +584,11 @@ class LocalStorageService:
             return {}
 
     def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
-        """Convert SQLite row to dictionary"""
+        """Convert SQLite row to dictionary with enhanced JSON parsing"""
         result = dict(row)
 
         # Parse JSON fields
-        json_fields = ["extracted_data", "confidence_scores", "failed_fields", "warnings"]
+        json_fields = ["extracted_data", "confidence_scores", "failed_fields", "warnings", "cost_breakdown"]
         for field in json_fields:
             if result.get(field):
                 try:
