@@ -1,95 +1,180 @@
-fields:
-  quote_number:
-    type: "String"
-    description: "This is the unique quote number for the policy. If a quote contains multiple policies, each policy has its own unique quote number."
-    required: true
+document_types:
+  quote:
+    name: "Insurance Quote"
+    description: "Insurance quote document for any line of coverage"
+    fields:
+      quote_number:
+        type: "String"
+        description: "This is the unique quote number for the policy. If a quote contains multiple policies, each policy has its own unique quote number."
+        required: true
 
-  policy_effective_date:
-    type: "Date"
-    format: "MM/DD/YYYY"
-    description: "The effective date of the policy. If the quote contains multiple policies, this date is usually the same for all policies, but should still be extracted individually if provided."
-    required: true
+      policy_effective_date:
+        type: "Date"
+        format: "MM/DD/YYYY"
+        description: "The effective date of the policy. If the quote contains multiple policies, this date is usually the same for all policies, but should still be extracted individually if provided."
+        required: true
 
-  policy_expiration_date:
-    type: "Date"
-    format: "MM/DD/YYYY"
-    description: "The expiration date of the policy. Similar to the effective date, this date is typically the same for all policies, but should be extracted for each policy if provided."
-    required: true
+      policy_expiration_date:
+        type: "Date"
+        format: "MM/DD/YYYY"
+        description: "The expiration date of the policy. Similar to the effective date, this date is typically the same for all policies, but should be extracted for each policy if provided."
+        required: true
 
-  named_insured_name:
-    type: "String"
-    description: "The name of the primary policyholder (the Named Insured)."
-    required: true
+      named_insured_name:
+        type: "String"
+        description: "The name of the primary policyholder (the Named Insured)."
+        required: true
 
-  named_insured_address:
-    type: "String"
-    description: "The address of the primary policyholder (the Named Insured)."
-    required: true
+      named_insured_address:
+        type: "String"
+        description: "The address of the primary policyholder (the Named Insured)."
+        required: true
 
-  additional_named_insured_name:
-    type: "Boolean"
-    format: "Included/Excluded"
-    description: "Indicates whether additional named insureds are included. Often, they are not explicitly listed in the quote but may be determined from endorsement forms."
-    required: false
+      additional_named_insured_name:
+        type: "Boolean"
+        format: "Included/Excluded"
+        description: "Indicates whether additional named insureds are included. Often, they are not explicitly listed in the quote but may be determined from endorsement forms."
+        required: false
 
-  additional_named_insured_address:
-    type: "String"
-    description: "The address of the additional named insured if available; otherwise, return 'Excluded'."
-    required: false
+      additional_named_insured_address:
+        type: "String"
+        description: "The address of the additional named insured if available; otherwise, return 'Excluded'."
+        required: false
 
-  issuing_carrier:
-    type: "String"
-    description: "The name of the issuing carrier in a list, e.g. ['carrier name']. For Workers' compensation policy, check if you can detect a total premium per state. If so, return a list where each item is 'State code - issuing carrier - premium in that state (round it, don't show the decimals appearing after the point sign)', e.g. 'NY - Hartford Casualty Insurance Company - 553', as shown in the example output. Otherwise, just return the name of the issuing carrier in a list. You should extract the total estimated premium, it should explicitly be in the state list of cost, don't make up or transform a number."
-    required: false
+      issuing_carrier:
+        type: "String"
+        description: "The name of the issuing carrier in a list, e.g. ['carrier name']. For Workers' compensation policy, check if you can detect a total premium per state. If so, return a list where each item is 'State code - issuing carrier - premium in that state (round it, don't show the decimals appearing after the point sign)', e.g. 'NY - Hartford Casualty Insurance Company - 553', as shown in the example output. Otherwise, just return the name of the issuing carrier in a list. You should extract the total estimated premium, it should explicitly be in the state list of cost, don't make up or transform a number."
+        required: false
 
-  commission:
-    type: "Percentage/Currency"
-    description: "The commission details for the policy. This is typically included in the premium or fee section of the document. If not found, return 'EMPTY VALUE'."
-    required: false
+      commission:
+        type: "Percentage/Currency"
+        description: "The commission details for the policy. This is typically included in the premium or fee section of the document. If not found, return 'EMPTY VALUE'."
+        required: false
 
-  estimated_premium_amount:
-    type: "Currency"
-    description: "The total estimated premium amount. Usually found in the premium or fee section of the quote document."
-    required: false
+      estimated_premium_amount:
+        type: "Currency"
+        description: "The total estimated premium amount. Usually found in the premium or fee section of the quote document."
+        required: false
 
-  minimum_earned_premium:
-    type: "Currency/Percentage"
-    description: "The minimum earned premium, if applicable. It is sometimes stated within a disclaimer paragraph, but could also be in a table or summary. It could be related to a minimum premium required per state, or a cancellation fee. If the amount is not found, or is not an exact amount (or exact percentage of the total estimated premium), return 'EMPTY VALUE'. Do not calculate the minimum earned premium from penalties ranges, fees ranges, or percentages."
-    required: false
+      minimum_earned_premium:
+        type: "Currency/Percentage"
+        description: "The minimum earned premium, if applicable. It is sometimes stated within a disclaimer paragraph, but could also be in a table or summary. It could be related to a minimum premium required per state, or a cancellation fee. If the amount is not found, or is not an exact amount (or exact percentage of the total estimated premium), return 'EMPTY VALUE'. Do not calculate the minimum earned premium from penalties ranges, fees ranges, or percentages."
+        required: false
 
-  taxes:
-    type: "Currency"
-    description: "The taxes associated with the policy. Usually included in the premium section of the document."
-    required: false
+      taxes:
+        type: "Currency"
+        description: "The taxes associated with the policy. Usually included in the premium section of the document."
+        required: false
 
-  tria:
-    type: "Boolean"
-    format: "Included/Excluded"
-    description: "Whether the Terrorism Risk Insurance Act (TRIA) coverage is included in the policy. Sometimes this is listed explicitly, and other times it must be inferred from endorsement forms."
-    required: false
+      tria:
+        type: "Boolean"
+        format: "Included/Excluded"
+        description: "Whether the Terrorism Risk Insurance Act (TRIA) coverage is included in the policy. Sometimes this is listed explicitly, and other times it must be inferred from endorsement forms."
+        required: false
 
-  waiver_of_subrogation_type:
-    type: "Boolean"
-    format: "Included/Excluded"
-    description: "Indicates whether a waiver of subrogation is included"
-    required: false
+      waiver_of_subrogation_type:
+        type: "Boolean"
+        format: "Included/Excluded"
+        description: "Indicates whether a waiver of subrogation is included"
+        required: false
 
-  workers_comp_each_accident_limit:
-    type: "Currency"
-    description: "The limit for each accident, typically found in the Workers' Compensation section of the quote."
-    required: false
+      workers_comp_each_accident_limit:
+        type: "Currency"
+        description: "The limit for each accident, typically found in the Workers' Compensation section of the quote."
+        required: false
 
-  workers_comp_disease_each_employee:
-    type: "Currency"
-    description: "The coverage limit for disease for each employee, found in the Workers' Compensation section."
-    required: false
+      workers_comp_disease_each_employee:
+        type: "Currency"
+        description: "The coverage limit for disease for each employee, found in the Workers' Compensation section."
+        required: false
 
-  workers_comp_disease_policy_limit:
-    type: "Currency"
-    description: "The overall policy limit for disease coverage, typically found in the Workers' Compensation section."
-    required: false
+      workers_comp_disease_policy_limit:
+        type: "Currency"
+        description: "The overall policy limit for disease coverage, typically found in the Workers' Compensation section."
+        required: false
 
-  workers_comp_exclusion_description:
-    type: "String"
-    description: "There may be states where officers or owners are excluded from the Workers' Compensation policy. It may come as a note stating if a given state is excluded or included. Only if it is an exclusion, return the state code followed by the excluded status, e.g. 'TX-Excluded'. If it is not an exclusion or no exclusion clauses are found, return 'EMPTY VALUE'."
-    required: false
+      workers_comp_exclusion_description:
+        type: "String"
+        description: "There may be states where officers or owners are excluded from the Workers' Compensation policy. It may come as a note stating if a given state is excluded or included. Only if it is an exclusion, return the state code followed by the excluded status, e.g. 'TX-Excluded'. If it is not an exclusion or no exclusion clauses are found, return 'EMPTY VALUE'."
+        required: false
+
+  binder:
+    name: "Insurance Binder"
+    description: "Insurance binder document providing temporary coverage"
+    fields:
+      binder_number:
+        type: "String"
+        description: "Unique binder identification number"
+        required: true
+
+      effective_date:
+        type: "Date"
+        format: "MM/DD/YYYY"
+        description: "Date when coverage begins"
+        required: true
+
+      expiration_date:
+        type: "Date"
+        format: "MM/DD/YYYY"
+        description: "Date when coverage expires"
+        required: true
+
+      named_insured:
+        type: "String"
+        description: "Name of the insured party"
+        required: true
+
+      named_insured_address:
+        type: "String"
+        description: "Address of the insured party"
+        required: true
+
+      coverages:
+        type: "Array"
+        description: "List of coverage types included (e.g., General Liability, Auto Liability, Property, Workers Compensation)"
+        required: true
+
+      coverage_limits:
+        type: "Object"
+        description: "Coverage limits for each line of coverage, formatted as key-value pairs (e.g., 'General Liability': '$1,000,000 per occurrence')"
+        required: false
+
+      total_premium:
+        type: "Currency"
+        description: "Total premium amount for all coverages"
+        required: false
+
+      carrier:
+        type: "String"
+        description: "Insurance company providing the coverage"
+        required: true
+
+      broker_name:
+        type: "String"
+        description: "Name of the producing broker or agent"
+        required: false
+
+      broker_contact:
+        type: "String"
+        description: "Contact information for the broker (phone, email, or address)"
+        required: false
+
+      certificate_holder:
+        type: "String"
+        description: "Entity that will receive the certificate of insurance"
+        required: false
+
+      policy_numbers:
+        type: "Array"
+        description: "List of underlying policy numbers if available"
+        required: false
+
+      special_provisions:
+        type: "String"
+        description: "Any special terms, conditions, or endorsements mentioned"
+        required: false
+
+      additional_insureds:
+        type: "Array"
+        description: "List of additional insured parties if any"
+        required: false

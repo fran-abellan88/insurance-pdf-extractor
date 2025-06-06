@@ -1,0 +1,23 @@
+# Development overrides for docker-compose
+# This file is automatically loaded when running docker-compose up
+version: '3.8'
+
+services:
+  insurance-pdf-extractor:
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Mount source code for live reloading during development
+      - .:/app
+      - /app/.venv  # Exclude virtual environment
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-level", "debug"]
+    # Override health check for development (faster checks)
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 2
+      start_period: 10s
+    # Add development ports if needed
+    ports:
+      - "8000:8000"

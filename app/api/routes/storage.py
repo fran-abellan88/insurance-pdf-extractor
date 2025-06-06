@@ -121,7 +121,7 @@ async def cleanup_old_records(
 
 @router.get("/export", summary="Export extraction data", description="Export extraction data in various formats")
 async def export_extractions(
-    format: str = Query(default="json", regex="^(json|csv)$", description="Export format (json or csv)"),
+    format: str = Query(default="json", pattern="^(json|csv)$", description="Export format (json or csv)"),
     start_date: Optional[str] = Query(default=None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(default=None, description="End date (YYYY-MM-DD)"),
     current_user: dict = Depends(get_current_user),

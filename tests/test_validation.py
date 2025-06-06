@@ -5,15 +5,15 @@ Tests for data validation models
 import pytest
 from pydantic import ValidationError
 
-from app.models.extraction import WorkersCompensationData, validate_extracted_data
+from app.models.extraction import QuoteData, validate_extracted_data
 
 
-class TestWorkersCompensationData:
+class TestQuoteData:
 
     def test_valid_data(self, sample_extracted_data):
         """Test validation with valid data"""
 
-        data = WorkersCompensationData(**sample_extracted_data)
+        data = QuoteData(**sample_extracted_data)
         assert data.quote_number == "123456"
         assert data.policy_effective_date == "01/01/2024"
 
@@ -30,11 +30,11 @@ class TestWorkersCompensationData:
         }
 
         # Should not raise exception due to date normalization
-        result = WorkersCompensationData(**data)
+        result = QuoteData(**data)
         assert result.policy_effective_date == "01/01/2024"
 
     def test_missing_required_fields(self):
         """Test validation with missing required fields"""
 
         with pytest.raises(ValidationError):
-            WorkersCompensationData(quote_number="")  # Empty required field
+            QuoteData(quote_number="")  # Empty required field

@@ -31,6 +31,7 @@ class PDFProcessor:
         pdf_content: bytes,
         filename: str,
         model_name: str = "gemini-1.5-flash",
+        document_type: str = "quote",
         prompt_version: Optional[str] = None,
         temperature: float = 0.1,
         max_tokens: int = 4096,
@@ -38,12 +39,13 @@ class PDFProcessor:
         include_token_usage: bool = False,
     ) -> Dict[str, Any]:
         """
-        Process PDF and extract insurance data
+        Process PDF and extract insurance data using specified document type
 
         Args:
             pdf_content: PDF file content as bytes
             filename: Original filename
             model_name: Gemini model to use
+            document_type: Type of document ('quote' or 'binder')
             prompt_version: Version of prompt to use
             temperature: AI model temperature
             max_tokens: Maximum tokens for response
@@ -59,9 +61,12 @@ class PDFProcessor:
             # Validate PDF file
             self._validate_pdf(pdf_content, filename)
 
-            # Get prompt
-            prompt = self.prompt_manager.get_prompt(prompt_version)
-            logger.info(f"Using prompt version: {prompt_version or 'latest'}")
+            # Use the provided document type (no AI detection needed)
+            logger.info(f"Processing as document type: {document_type}")
+
+            # Get prompt for the specified document type
+            prompt = self.prompt_manager.get_prompt(document_type, prompt_version)
+            logger.info(f"Using prompt version: {prompt_version or 'latest'} for document type: {document_type}")
 
             # Count tokens before processing if requested
             token_metrics = {}
@@ -103,8 +108,8 @@ class PDFProcessor:
                         input_tokens, output_tokens, model_name
                     )
 
-            # Validate extracted data
-            validation_result = validate_extracted_data(gemini_result["extracted_data"])
+            # Validate extracted data with document type
+            validation_result = validate_extracted_data(gemini_result["extracted_data"], document_type)
 
             total_processing_time = time.time() - start_time
 
@@ -112,6 +117,7 @@ class PDFProcessor:
             response = {
                 "status": "success" if validation_result.is_valid else "partial_success",
                 "extracted_data": validation_result.data.model_dump(),
+                "document_type": document_type,
                 "processing_time": total_processing_time,
                 "model_used": model_name,
                 "prompt_version": prompt_version or self.prompt_manager.get_default_version(),

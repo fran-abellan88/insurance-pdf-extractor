@@ -51,6 +51,15 @@ class FileProcessingError(Exception):
         super().__init__(self.message)
 
 
+class DocumentProcessingError(Exception):
+    """Custom exception for document processing errors"""
+
+    def __init__(self, message: str, document_type: str = None):
+        self.message = message
+        self.document_type = document_type
+        super().__init__(self.message)
+
+
 async def extraction_exception_handler(request: Request, exc: ExtractionError) -> JSONResponse:
     """Handle extraction errors"""
     logger.error(f"Extraction error: {exc.message}, Details: {exc.details}")
