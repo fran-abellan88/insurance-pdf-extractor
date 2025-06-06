@@ -35,6 +35,7 @@ class LocalStorageService:
                     status TEXT NOT NULL,
                     model_used TEXT NOT NULL,
                     prompt_version TEXT,
+                    document_type TEXT DEFAULT 'quote',  -- Document type
                     processing_time REAL,
                     extracted_data TEXT,  -- JSON string
                     confidence_scores TEXT,  -- JSON string
@@ -137,16 +138,17 @@ class LocalStorageService:
         cursor.execute("PRAGMA table_info(extractions)")
         existing_columns = [column[1] for column in cursor.fetchall()]
 
-        token_columns = [
+        columns_to_add = [
             ("input_tokens", "INTEGER DEFAULT NULL"),
             ("output_tokens", "INTEGER DEFAULT NULL"),
             ("total_tokens", "INTEGER DEFAULT NULL"),
             ("estimated_cost", "REAL DEFAULT NULL"),
             ("cost_breakdown", "TEXT DEFAULT NULL"),
             ("token_error", "TEXT DEFAULT NULL"),
+            ("document_type", "TEXT DEFAULT 'quote'"),
         ]
 
-        for column_name, column_def in token_columns:
+        for column_name, column_def in columns_to_add:
             if column_name not in existing_columns:
                 try:
                     conn.execute(f"ALTER TABLE extractions ADD COLUMN {column_name} {column_def}")
@@ -177,12 +179,14 @@ class LocalStorageService:
         failed_fields: Optional[List[str]] = None,
         warnings: Optional[List[str]] = None,
         user_key: Optional[str] = None,
-        token_usage: Optional[Dict[str, Any]] = None,  # New parameter
+        token_usage: Optional[Dict[str, Any]] = None,
+        document_type: str = "quote",  # New parameter
     ) -> int:
         """
-        Store extraction results in the database with token usage
+        Store extraction results in the database with token usage and document type
 
         Args:
+            document_type: Type of document processed (e.g., 'quote', 'binder')
             token_usage: Dictionary containing token usage information
                 Expected keys: input_tokens, output_tokens, total_tokens,
                               estimated_cost, cost_breakdown, error
@@ -217,11 +221,11 @@ class LocalStorageService:
                     """
                     INSERT INTO extractions (
                         filename, file_size, status, model_used, prompt_version,
-                        processing_time, extracted_data, confidence_scores,
+                        document_type, processing_time, extracted_data, confidence_scores,
                         failed_fields, warnings, user_key,
                         input_tokens, output_tokens, total_tokens,
                         estimated_cost, cost_breakdown, token_error
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         filename,
@@ -229,6 +233,7 @@ class LocalStorageService:
                         status,
                         model_used,
                         prompt_version,
+                        document_type,
                         processing_time,
                         json.dumps(extracted_data) if extracted_data else None,
                         json.dumps(confidence_scores) if confidence_scores else None,
@@ -390,6 +395,7 @@ class LocalStorageService:
         filename_pattern: Optional[str] = None,
         status: Optional[str] = None,
         model_used: Optional[str] = None,
+        document_type: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
         limit: int = 100,
@@ -413,6 +419,10 @@ class LocalStorageService:
                 if model_used:
                     query += " AND model_used = ?"
                     params.append(model_used)
+
+                if document_type:
+                    query += " AND document_type = ?"
+                    params.append(document_type)
 
                 if start_date:
                     query += " AND created_at >= ?"
@@ -521,6 +531,78 @@ class LocalStorageService:
 
         except Exception as e:
             logger.error(f"Failed to get token usage statistics: {e}")
+            return {}
+
+    def get_document_type_statistics(self) -> Dict[str, Any]:
+        """Get statistics by document type"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Overall document type distribution
+                cursor.execute(
+                    """
+                    SELECT
+                        COALESCE(document_type, 'quote') as document_type,
+                        COUNT(*) as total_extractions,
+                        COUNT(CASE WHEN status = 'success' THEN 1 END) as successful_extractions,
+                        COUNT(CASE WHEN status = 'partial_success' THEN 1 END) as partial_extractions,
+                        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_extractions,
+                        AVG(processing_time) as avg_processing_time,
+                        SUM(estimated_cost) as total_cost,
+                        AVG(estimated_cost) as avg_cost,
+                        MIN(created_at) as first_extraction,
+                        MAX(created_at) as latest_extraction
+                    FROM extractions
+                    GROUP BY COALESCE(document_type, 'quote')
+                    ORDER BY total_extractions DESC
+                """
+                )
+
+                document_type_stats = [dict(row) for row in cursor.fetchall()]
+
+                # Document type trends over time (last 30 days)
+                cursor.execute(
+                    """
+                    SELECT
+                        DATE(created_at) as date,
+                        COALESCE(document_type, 'quote') as document_type,
+                        COUNT(*) as daily_count
+                    FROM extractions
+                    WHERE created_at >= datetime('now', '-30 days')
+                    GROUP BY DATE(created_at), COALESCE(document_type, 'quote')
+                    ORDER BY date DESC, daily_count DESC
+                """
+                )
+
+                daily_type_trends = [dict(row) for row in cursor.fetchall()]
+
+                # Model usage by document type
+                cursor.execute(
+                    """
+                    SELECT
+                        COALESCE(document_type, 'quote') as document_type,
+                        model_used,
+                        COUNT(*) as usage_count,
+                        AVG(processing_time) as avg_processing_time,
+                        AVG(estimated_cost) as avg_cost
+                    FROM extractions
+                    GROUP BY COALESCE(document_type, 'quote'), model_used
+                    ORDER BY usage_count DESC
+                """
+                )
+
+                model_by_type_stats = [dict(row) for row in cursor.fetchall()]
+
+                return {
+                    "document_type_distribution": document_type_stats,
+                    "daily_trends_by_type": daily_type_trends,
+                    "model_usage_by_type": model_by_type_stats,
+                    "generated_at": datetime.now().isoformat(),
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to get document type statistics: {e}")
             return {}
 
     def get_field_statistics(self) -> Dict[str, Any]:

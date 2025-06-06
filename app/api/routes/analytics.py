@@ -279,7 +279,7 @@ async def predict_extraction_costs(
     description="Export detailed token usage data in CSV or JSON format",
 )
 async def export_token_usage_data(
-    format: str = Query(default="json", regex="^(json|csv)$", description="Export format"),
+    format: str = Query(default="json", pattern="^(json|csv)$", description="Export format"),
     include_details: bool = Query(default=True, description="Include detailed breakdown"),
     current_user: dict = Depends(get_current_user),
 ):
@@ -347,6 +347,56 @@ async def export_token_usage_data(
         logger.error(f"Failed to export token usage data: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to export token usage data"
+        )
+
+
+@router.get(
+    "/document-types",
+    summary="Get document type analytics",
+    description="Get comprehensive analytics on document types being processed",
+)
+async def get_document_type_analytics(
+    current_user: dict = Depends(get_current_user),
+):
+    """Get document type distribution and analytics"""
+
+    try:
+        stats = storage_service.get_document_type_statistics()
+
+        if not stats:
+            return {
+                "message": "No document type data available",
+                "document_type_distribution": [],
+                "daily_trends_by_type": [],
+                "model_usage_by_type": [],
+            }
+
+        # Calculate summary metrics
+        total_extractions = sum(
+            doc_type["total_extractions"] for doc_type in stats.get("document_type_distribution", [])
+        )
+        
+        most_common_type = "unknown"
+        if stats.get("document_type_distribution"):
+            most_common_type = max(
+                stats["document_type_distribution"], 
+                key=lambda x: x["total_extractions"]
+            )["document_type"]
+
+        return {
+            "document_type_analytics": stats,
+            "summary": {
+                "total_extractions": total_extractions,
+                "total_document_types": len(stats.get("document_type_distribution", [])),
+                "most_common_type": most_common_type,
+                "supported_types": ["quote", "binder"],
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get document type analytics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve document type analytics"
         )
 
 
