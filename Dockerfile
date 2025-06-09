@@ -1,5 +1,5 @@
 # Multi-stage build for Insurance PDF Extractor
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -23,7 +23,7 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
 # Production stage
-FROM python:3.11-slim as production
+FROM python:3.11-slim AS production
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \

@@ -95,15 +95,15 @@ async def extract_pdf_data(
 ):
     """Extract structured data from insurance PDF with enhanced token tracking"""
 
-    logger.info(f"PDF extraction request from user {current_user.get('key', 'unknown')}")
+    logger.info("PDF extraction request started")
 
     try:
         # Validate document type
         supported_types = ["quote", "binder"]
         if document_type not in supported_types:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=f"Invalid document_type. Supported types: {supported_types}"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid document_type. Supported types: {supported_types}",
             )
 
         # Validate file type
@@ -279,31 +279,28 @@ async def get_available_prompts(document_type: Optional[str] = None, current_use
 
             return {
                 "document_type": document_type,
-                "available_versions": versions, 
-                "default_version": default_version, 
-                "prompts": prompt_info
+                "available_versions": versions,
+                "default_version": default_version,
+                "prompts": prompt_info,
             }
         else:
             # Get prompts for all document types
             document_types = ["quote", "binder"]
             all_prompts = {}
-            
+
             for doc_type in document_types:
                 versions = prompt_manager.get_available_versions(doc_type)
                 prompt_info = []
                 for version in versions:
                     info = prompt_manager.get_prompt_info(doc_type, version)
                     prompt_info.append(info)
-                
-                all_prompts[doc_type] = {
-                    "available_versions": versions,
-                    "prompts": prompt_info
-                }
+
+                all_prompts[doc_type] = {"available_versions": versions, "prompts": prompt_info}
 
             return {
                 "document_types": all_prompts,
                 "default_version": default_version,
-                "supported_document_types": document_types
+                "supported_document_types": document_types,
             }
 
     except Exception as e:
@@ -358,27 +355,17 @@ async def get_field_definitions(document_type: Optional[str] = None, current_use
         if document_type:
             # Get fields for specific document type
             fields = prompt_manager.get_all_fields(document_type)
-            return {
-                "document_type": document_type,
-                "fields": fields, 
-                "total_fields": len(fields)
-            }
+            return {"document_type": document_type, "fields": fields, "total_fields": len(fields)}
         else:
             # Get fields for all document types
             document_types = ["quote", "binder"]
             all_fields = {}
-            
+
             for doc_type in document_types:
                 fields = prompt_manager.get_all_fields(doc_type)
-                all_fields[doc_type] = {
-                    "fields": fields,
-                    "total_fields": len(fields)
-                }
+                all_fields[doc_type] = {"fields": fields, "total_fields": len(fields)}
 
-            return {
-                "document_types": all_fields,
-                "supported_document_types": document_types
-            }
+            return {"document_types": all_fields, "supported_document_types": document_types}
 
     except Exception as e:
         logger.error(f"Error getting field definitions: {e}")
@@ -387,7 +374,9 @@ async def get_field_definitions(document_type: Optional[str] = None, current_use
         )
 
 
-@router.get("/document-types", summary="Get supported document types", description="Get list of supported document types")
+@router.get(
+    "/document-types", summary="Get supported document types", description="Get list of supported document types"
+)
 async def get_supported_document_types(current_user: dict = Depends(get_current_user)):
     """Get list of supported document types"""
 
@@ -401,7 +390,7 @@ async def get_supported_document_types(current_user: dict = Depends(get_current_
         return {
             "supported_document_types": supported_types,
             "total_types": len(supported_types),
-            "default_type": "quote"
+            "default_type": "quote",
         }
 
     except Exception as e:
