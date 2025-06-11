@@ -78,6 +78,7 @@ limiter = Limiter(key_func=get_remote_address)
 
     **Token Usage**: Enable `include_token_usage` to get detailed token consumption metrics and cost estimates.
     **Confidence Scores**: Enable `include_confidence` to get confidence scores for each extracted field.
+    **Page Sources**: Enable `include_page_sources` to get page source information for each extracted field.
     """,
 )
 @limiter.limit("10/minute")
@@ -91,6 +92,7 @@ async def extract_pdf_data(
     max_tokens: int = Form(default=4096, ge=1, le=8192, description="Maximum response tokens"),
     include_confidence: bool = Form(default=False, description="Include confidence scores"),
     include_token_usage: bool = Form(default=False, description="Include detailed token usage and cost estimates"),
+    include_page_sources: bool = Form(default=False, description="Include page source information for each field"),
     current_user: dict = Depends(get_current_user),
 ):
     """Extract structured data from insurance PDF with enhanced token tracking"""
@@ -125,6 +127,7 @@ async def extract_pdf_data(
             max_tokens=max_tokens,
             include_confidence=include_confidence,
             include_token_usage=include_token_usage,
+            include_page_sources=include_page_sources,
         )
 
         # Store the extraction results locally with token usage
@@ -139,7 +142,9 @@ async def extract_pdf_data(
                 prompt_version=result["prompt_version"],
                 processing_time=result["processing_time"],
                 extracted_data=result["extracted_data"],
+                num_pages=result.get("file_info", {}).get("num_pages"),
                 confidence_scores=result.get("confidence_scores"),
+                page_sources=result.get("page_sources"),
                 failed_fields=result.get("failed_fields"),
                 warnings=result.get("warnings"),
                 user_key=current_user.get("key", "unknown"),

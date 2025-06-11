@@ -37,6 +37,7 @@ class PDFProcessor:
         max_tokens: int = 4096,
         include_confidence: bool = False,
         include_token_usage: bool = False,
+        include_page_sources: bool = False,
     ) -> Dict[str, Any]:
         """
         Process PDF and extract insurance data using specified document type
@@ -51,6 +52,7 @@ class PDFProcessor:
             max_tokens: Maximum tokens for response
             include_confidence: Whether to include confidence scores
             include_token_usage: Whether to include detailed token usage metrics
+            include_page_sources: Whether to include page source information for each field
 
         Returns:
             Dict containing extraction results
@@ -58,15 +60,21 @@ class PDFProcessor:
         start_time = time.time()
 
         try:
-            # Validate PDF file
-            self._validate_pdf(pdf_content, filename)
+            # Validate PDF file and get page count
+            pdf_info = self._validate_pdf(pdf_content, filename)
 
             # Use the provided document type (no AI detection needed)
             logger.info(f"Processing as document type: {document_type}")
 
+            # Select prompt version based on page sources requirement
+            actual_prompt_version = prompt_version
+            if include_page_sources and prompt_version is None:
+                # Auto-select v2 if page sources are requested and no version specified
+                actual_prompt_version = "v2"
+            
             # Get prompt for the specified document type
-            prompt = self.prompt_manager.get_prompt(document_type, prompt_version)
-            logger.info(f"Using prompt version: {prompt_version or 'latest'} for document type: {document_type}")
+            prompt = self.prompt_manager.get_prompt(document_type, actual_prompt_version)
+            logger.info(f"Using prompt version: {actual_prompt_version or 'latest'} for document type: {document_type}")
 
             # Count tokens before processing if requested
             token_metrics = {}
@@ -108,8 +116,21 @@ class PDFProcessor:
                         input_tokens, output_tokens, model_name
                     )
 
+            # Handle page sources extraction for v2 prompts
+            page_sources = None
+            extracted_data = gemini_result["extracted_data"]
+            
+            if include_page_sources and actual_prompt_version == "v2":
+                # For v2 prompts, the response includes both extracted_data and page_sources
+                if isinstance(extracted_data, dict) and "extracted_data" in extracted_data:
+                    page_sources = extracted_data.get("page_sources", {})
+                    extracted_data = extracted_data["extracted_data"]
+                    logger.info("Extracted page sources from v2 prompt response")
+                else:
+                    logger.warning("Expected v2 format but got v1 format response")
+            
             # Validate extracted data with document type
-            validation_result = validate_extracted_data(gemini_result["extracted_data"], document_type)
+            validation_result = validate_extracted_data(extracted_data, document_type)
 
             total_processing_time = time.time() - start_time
 
@@ -120,11 +141,12 @@ class PDFProcessor:
                 "document_type": document_type,
                 "processing_time": total_processing_time,
                 "model_used": model_name,
-                "prompt_version": prompt_version or self.prompt_manager.get_default_version(),
+                "prompt_version": actual_prompt_version or self.prompt_manager.get_default_version(),
                 "file_info": {
                     "filename": filename,
                     "size_bytes": len(pdf_content),
                     "size_mb": round(len(pdf_content) / (1024 * 1024), 2),
+                    "num_pages": pdf_info["num_pages"],
                 },
             }
 
@@ -141,6 +163,10 @@ class PDFProcessor:
                 response["confidence_scores"] = self._calculate_confidence_scores(
                     validation_result.data.model_dump(), gemini_result.get("response_text", "")
                 )
+
+            # Add page sources if requested and available
+            if include_page_sources and page_sources:
+                response["page_sources"] = page_sources
 
             # Add token usage if requested and available
             if include_token_usage:
@@ -346,13 +372,16 @@ class PDFProcessor:
             "cost_breakdown": f"${round(input_cost, 6)} (input) + ${round(output_cost, 6)} (output) = ${round(total_cost, 6)}",
         }
 
-    def _validate_pdf(self, pdf_content: bytes, filename: str) -> None:
+    def _validate_pdf(self, pdf_content: bytes, filename: str) -> Dict[str, Any]:
         """
         Validate PDF file content and metadata
 
         Args:
             pdf_content: PDF file content
             filename: Original filename
+
+        Returns:
+            Dict containing PDF information including page count
 
         Raises:
             FileProcessingError: If validation fails
@@ -381,6 +410,12 @@ class PDFProcessor:
                     logger.warning(f"PDF {filename} may be image-based or have little text content")
 
                 logger.info(f"PDF validation successful: {filename} ({num_pages} pages)")
+                
+                return {
+                    "num_pages": num_pages,
+                    "has_text": bool(text_sample and len(text_sample.strip()) >= 10),
+                    "text_sample_length": len(text_sample) if text_sample else 0
+                }
 
             except Exception as e:
                 raise FileProcessingError(f"Invalid PDF file: {str(e)}", filename)

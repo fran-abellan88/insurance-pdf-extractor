@@ -32,6 +32,7 @@ class LocalStorageService:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     filename TEXT NOT NULL,
                     file_size INTEGER,
+                    num_pages INTEGER,
                     status TEXT NOT NULL,
                     model_used TEXT NOT NULL,
                     prompt_version TEXT,
@@ -39,6 +40,7 @@ class LocalStorageService:
                     processing_time REAL,
                     extracted_data TEXT,  -- JSON string
                     confidence_scores TEXT,  -- JSON string
+                    page_sources TEXT,  -- JSON string
                     failed_fields TEXT,  -- JSON string
                     warnings TEXT,  -- JSON string
                     user_key TEXT,
@@ -146,6 +148,8 @@ class LocalStorageService:
             ("cost_breakdown", "TEXT DEFAULT NULL"),
             ("token_error", "TEXT DEFAULT NULL"),
             ("document_type", "TEXT DEFAULT 'quote'"),
+            ("page_sources", "TEXT DEFAULT NULL"),
+            ("num_pages", "INTEGER DEFAULT NULL"),
         ]
 
         for column_name, column_def in columns_to_add:
@@ -175,7 +179,9 @@ class LocalStorageService:
         prompt_version: str,
         processing_time: float,
         extracted_data: Dict[str, Any],
+        num_pages: Optional[int] = None,
         confidence_scores: Optional[Dict[str, float]] = None,
+        page_sources: Optional[Dict[str, Optional[int]]] = None,
         failed_fields: Optional[List[str]] = None,
         warnings: Optional[List[str]] = None,
         user_key: Optional[str] = None,
@@ -187,6 +193,8 @@ class LocalStorageService:
 
         Args:
             document_type: Type of document processed (e.g., 'quote', 'binder')
+            num_pages: Number of pages in the PDF document
+            page_sources: Dictionary mapping field names to page numbers where they were found
             token_usage: Dictionary containing token usage information
                 Expected keys: input_tokens, output_tokens, total_tokens,
                               estimated_cost, cost_breakdown, error
@@ -220,16 +228,17 @@ class LocalStorageService:
                 cursor.execute(
                     """
                     INSERT INTO extractions (
-                        filename, file_size, status, model_used, prompt_version,
+                        filename, file_size, num_pages, status, model_used, prompt_version,
                         document_type, processing_time, extracted_data, confidence_scores,
-                        failed_fields, warnings, user_key,
+                        page_sources, failed_fields, warnings, user_key,
                         input_tokens, output_tokens, total_tokens,
                         estimated_cost, cost_breakdown, token_error
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         filename,
                         file_size,
+                        num_pages,
                         status,
                         model_used,
                         prompt_version,
@@ -237,6 +246,7 @@ class LocalStorageService:
                         processing_time,
                         json.dumps(extracted_data) if extracted_data else None,
                         json.dumps(confidence_scores) if confidence_scores else None,
+                        json.dumps(page_sources) if page_sources else None,
                         json.dumps(failed_fields) if failed_fields else None,
                         json.dumps(warnings) if warnings else None,
                         user_key,
@@ -665,12 +675,182 @@ class LocalStorageService:
             logger.error(f"Failed to get field statistics: {e}")
             return {}
 
+    def get_page_source_statistics(self) -> Dict[str, Any]:
+        """Get statistics about page source usage"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Count extractions with page sources
+                cursor.execute(
+                    """
+                    SELECT 
+                        COUNT(*) as total_extractions,
+                        SUM(CASE WHEN page_sources IS NOT NULL THEN 1 ELSE 0 END) as with_page_sources,
+                        ROUND(SUM(CASE WHEN page_sources IS NOT NULL THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) as page_sources_percentage
+                    FROM extractions
+                """
+                )
+                
+                overall_stats = dict(cursor.fetchone())
+
+                # Page source usage by prompt version
+                cursor.execute(
+                    """
+                    SELECT 
+                        prompt_version,
+                        COUNT(*) as total_extractions,
+                        SUM(CASE WHEN page_sources IS NOT NULL THEN 1 ELSE 0 END) as with_page_sources
+                    FROM extractions
+                    GROUP BY prompt_version
+                    ORDER BY prompt_version
+                """
+                )
+                
+                version_stats = [dict(row) for row in cursor.fetchall()]
+
+                # Most recent extractions with page sources
+                cursor.execute(
+                    """
+                    SELECT 
+                        id, filename, prompt_version, created_at
+                    FROM extractions
+                    WHERE page_sources IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 10
+                """
+                )
+                
+                recent_with_sources = [dict(row) for row in cursor.fetchall()]
+
+                return {
+                    "overall_statistics": overall_stats,
+                    "usage_by_version": version_stats,
+                    "recent_extractions_with_sources": recent_with_sources,
+                    "generated_at": datetime.now().isoformat(),
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to get page source statistics: {e}")
+            return {}
+
+    def get_page_count_statistics(self) -> Dict[str, Any]:
+        """Get statistics about document page counts"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Overall page count statistics
+                cursor.execute(
+                    """
+                    SELECT 
+                        COUNT(*) as total_extractions,
+                        SUM(CASE WHEN num_pages IS NOT NULL THEN 1 ELSE 0 END) as with_page_count,
+                        MIN(num_pages) as min_pages,
+                        MAX(num_pages) as max_pages,
+                        AVG(num_pages) as avg_pages,
+                        ROUND(AVG(CAST(num_pages AS FLOAT)), 2) as avg_pages_rounded
+                    FROM extractions
+                    WHERE num_pages IS NOT NULL
+                """
+                )
+                
+                overall_stats = dict(cursor.fetchone())
+
+                # Page count distribution
+                cursor.execute(
+                    """
+                    SELECT 
+                        CASE 
+                            WHEN num_pages = 1 THEN '1 page'
+                            WHEN num_pages BETWEEN 2 AND 5 THEN '2-5 pages'
+                            WHEN num_pages BETWEEN 6 AND 10 THEN '6-10 pages'
+                            WHEN num_pages BETWEEN 11 AND 20 THEN '11-20 pages'
+                            WHEN num_pages > 20 THEN '21+ pages'
+                            ELSE 'Unknown'
+                        END as page_range,
+                        COUNT(*) as count,
+                        ROUND(AVG(processing_time), 2) as avg_processing_time,
+                        ROUND(AVG(estimated_cost), 6) as avg_cost
+                    FROM extractions
+                    WHERE num_pages IS NOT NULL
+                    GROUP BY 
+                        CASE 
+                            WHEN num_pages = 1 THEN '1 page'
+                            WHEN num_pages BETWEEN 2 AND 5 THEN '2-5 pages'
+                            WHEN num_pages BETWEEN 6 AND 10 THEN '6-10 pages'
+                            WHEN num_pages BETWEEN 11 AND 20 THEN '11-20 pages'
+                            WHEN num_pages > 20 THEN '21+ pages'
+                            ELSE 'Unknown'
+                        END
+                    ORDER BY 
+                        CASE 
+                            WHEN num_pages = 1 THEN 1
+                            WHEN num_pages BETWEEN 2 AND 5 THEN 2
+                            WHEN num_pages BETWEEN 6 AND 10 THEN 3
+                            WHEN num_pages BETWEEN 11 AND 20 THEN 4
+                            WHEN num_pages > 20 THEN 5
+                            ELSE 6
+                        END
+                """
+                )
+                
+                distribution_stats = [dict(row) for row in cursor.fetchall()]
+
+                # Correlation between pages and processing metrics
+                cursor.execute(
+                    """
+                    SELECT 
+                        num_pages,
+                        COUNT(*) as extraction_count,
+                        ROUND(AVG(processing_time), 2) as avg_processing_time,
+                        ROUND(AVG(estimated_cost), 6) as avg_cost,
+                        ROUND(AVG(input_tokens), 0) as avg_input_tokens,
+                        ROUND(AVG(output_tokens), 0) as avg_output_tokens
+                    FROM extractions
+                    WHERE num_pages IS NOT NULL
+                    GROUP BY num_pages
+                    HAVING COUNT(*) >= 2  -- Only include page counts with multiple samples
+                    ORDER BY num_pages
+                    LIMIT 20  -- Top 20 most common page counts
+                """
+                )
+                
+                correlation_stats = [dict(row) for row in cursor.fetchall()]
+
+                # Most complex documents (by page count)
+                cursor.execute(
+                    """
+                    SELECT 
+                        id, filename, num_pages, processing_time, 
+                        estimated_cost, status, created_at
+                    FROM extractions
+                    WHERE num_pages IS NOT NULL
+                    ORDER BY num_pages DESC, processing_time DESC
+                    LIMIT 10
+                """
+                )
+                
+                complex_documents = [dict(row) for row in cursor.fetchall()]
+
+                return {
+                    "overall_statistics": overall_stats,
+                    "page_count_distribution": distribution_stats,
+                    "processing_correlation": correlation_stats,
+                    "most_complex_documents": complex_documents,
+                    "generated_at": datetime.now().isoformat(),
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to get page count statistics: {e}")
+            return {}
+
     def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
         """Convert SQLite row to dictionary with enhanced JSON parsing"""
         result = dict(row)
 
         # Parse JSON fields
-        json_fields = ["extracted_data", "confidence_scores", "failed_fields", "warnings", "cost_breakdown"]
+        json_fields = ["extracted_data", "confidence_scores", "page_sources", "failed_fields", "warnings", "cost_breakdown"]
         for field in json_fields:
             if result.get(field):
                 try:
