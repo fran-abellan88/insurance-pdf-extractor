@@ -1,0 +1,5 @@
+[core]
+    remote = myremote
+['remote "myremote"']
+    url = s3://496695875059-dvc-demo
+    profile = fran-personal
