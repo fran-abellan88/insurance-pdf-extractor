@@ -1,0 +1,6 @@
+outs:
+- md5: a9c27c95c0008cfbc81f0ebb0d128c13.dir
+  size: 9622748
+  nfiles: 14
+  hash: md5
+  path: test_pdfs
