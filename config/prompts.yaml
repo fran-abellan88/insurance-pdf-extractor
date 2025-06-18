@@ -1,38 +1,143 @@
 default_version: "v1"
 
-versions:
-  v1:
-    description: "Workers Compensation extraction with focus on owners-officers exclusion"
-    template: |
-      From the provided insurance quote PDF, extract the listed fields for the Workers' Compensation policy. Return the results in the form of a JSON object, as shown in the example output.
-      Each field should adhere to the specified data type and description. Follow the example structure provided.
+document_types:
+  quote:
+    versions:
+      v1:
+        description: "Insurance quote extraction for any line of coverage"
+        template: |
+          From the provided insurance quote PDF, extract the listed fields. Return the results in the form of a JSON object, as shown in the example output.
+          Each field should adhere to the specified data type and description. Follow the example structure provided.
 
-      ### Fields to Extract:
+          ### Fields to Extract:
 
-      {fields}
+          {fields}
 
-      ### Example Output:
+          ### Example Output:
 
-      {example_output}
+          {example_output}
 
-    example_output: |
-      {Ø
-        "quote_number": "01WECBA3BVG003",
-        "policy_effective_date": "09/19/2023",
-        "policy_expiration_date": "09/19/2024",
-        "named_insured_name": "ACME BEER II LLC DBA: NORTH END PIZZA",
-        "named_insured_address": "1513 N 13TH ST BOISE ID 83702",
-        "additional_named_insured_name": "Excluded",
-        "additional_named_insured_address": "Excluded",
-        "issuing_carrier": "['TX - Hartford Casualty Insurance Company - 3500', 'PA - Hartford Casualty Insurance Company - 253']",
-        "commission": "EMPTY VALUE",
-        "estimated_premium_amount": "3753",
-        "minimum_earned_premium": "EMPTY VALUE",
-        "taxes": "EMPTY VALUE",
-        "tria": "Included",
-        "waiver_of_subrogation_type": "Excluded",
-        "workers_comp_each_accident_limit": "1000000",
-        "workers_comp_disease_each_employee": "1000000",
-        "workers_comp_disease_policy_limit": "1000000",
-        "workers_comp_exclusion_description": "ID-Excluded"
-      }
+        example_output: |
+          {
+            "quote_number": "01WECBA3BVG003",
+            "policy_effective_date": "09/19/2023",
+            "policy_expiration_date": "09/19/2024",
+            "named_insured_name": "ACME BEER II LLC DBA: NORTH END PIZZA",
+            "named_insured_address": "1513 N 13TH ST BOISE ID 83702",
+            "additional_named_insured_name": "Excluded",
+            "additional_named_insured_address": "Excluded",
+            "issuing_carrier": "['TX - Hartford Casualty Insurance Company - 3500', 'PA - Hartford Casualty Insurance Company - 253']",
+            "commission": "EMPTY VALUE",
+            "estimated_premium_amount": "3753",
+            "minimum_earned_premium": "EMPTY VALUE",
+            "taxes": "EMPTY VALUE",
+            "tria": "Included",
+            "waiver_of_subrogation_type": "Excluded",
+            "workers_comp_each_accident_limit": "1000000",
+            "workers_comp_disease_each_employee": "1000000",
+            "workers_comp_disease_policy_limit": "1000000",
+            "workers_comp_exclusion_description": "ID-Excluded"
+          }
+
+      v2:
+        description: "Insurance quote extraction with page source tracking for each field"
+        template: |
+          From the provided insurance quote PDF, extract the listed fields. Return the results in the form of a JSON object with two main sections:
+          1. "extracted_data": Contains the field values as specified
+          2. "page_sources": Contains the page number where each field was found
+          
+          Each field should adhere to the specified data type and description. Follow the example structure provided.
+          For the page_sources section, indicate the page number (starting from 1) where each field's value was extracted from the document.
+          If a field spans multiple pages or appears on multiple pages, use the primary page where the information is located.
+          If a field is not found or has an "EMPTY VALUE", set the page source to null.
+
+          ### Fields to Extract:
+
+          {fields}
+
+          ### Example Output:
+
+          {example_output}
+
+        example_output: |
+          {
+            "extracted_data": {
+              "quote_number": "01WECBA3BVG003",
+              "policy_effective_date": "09/19/2023",
+              "policy_expiration_date": "09/19/2024",
+              "named_insured_name": "ACME BEER II LLC DBA: NORTH END PIZZA",
+              "named_insured_address": "1513 N 13TH ST BOISE ID 83702",
+              "additional_named_insured_name": "Excluded",
+              "additional_named_insured_address": "Excluded",
+              "issuing_carrier": "['TX - Hartford Casualty Insurance Company - 3500', 'PA - Hartford Casualty Insurance Company - 253']",
+              "commission": "EMPTY VALUE",
+              "estimated_premium_amount": "3753",
+              "minimum_earned_premium": "EMPTY VALUE",
+              "taxes": "EMPTY VALUE",
+              "tria": "Included",
+              "waiver_of_subrogation_type": "Excluded",
+              "workers_comp_each_accident_limit": "1000000",
+              "workers_comp_disease_each_employee": "1000000",
+              "workers_comp_disease_policy_limit": "1000000",
+              "workers_comp_exclusion_description": "ID-Excluded"
+            },
+            "page_sources": {
+              "quote_number": 1,
+              "policy_effective_date": 1,
+              "policy_expiration_date": 1,
+              "named_insured_name": 1,
+              "named_insured_address": 1,
+              "additional_named_insured_name": 2,
+              "additional_named_insured_address": 2,
+              "issuing_carrier": 2,
+              "commission": null,
+              "estimated_premium_amount": 3,
+              "minimum_earned_premium": null,
+              "taxes": null,
+              "tria": 4,
+              "waiver_of_subrogation_type": 4,
+              "workers_comp_each_accident_limit": 2,
+              "workers_comp_disease_each_employee": 2,
+              "workers_comp_disease_policy_limit": 2,
+              "workers_comp_exclusion_description": 2
+            }
+          }
+
+  binder:
+    versions:
+      v1:
+        description: "Insurance binder extraction for temporary coverage documents"
+        template: |
+          From the provided insurance binder PDF, extract the listed fields. A binder is a temporary insurance document that provides immediate coverage while a formal policy is being issued. Return the results in the form of a JSON object, as shown in the example output.
+          Each field should adhere to the specified data type and description. Follow the example structure provided.
+
+          ### Fields to Extract:
+
+          {fields}
+
+          ### Example Output:
+
+          {example_output}
+
+        example_output: |
+          {
+            "binder_number": "BND-2024-001234",
+            "effective_date": "01/15/2024",
+            "expiration_date": "01/15/2025",
+            "named_insured": "ABC Construction LLC",
+            "named_insured_address": "123 Main Street, Town, NY 12345",
+            "coverages": ["General Liability", "Auto Liability", "Workers Compensation"],
+            "coverage_limits": {
+              "General Liability": "$1,000,000 per occurrence / $2,000,000 aggregate",
+              "Auto Liability": "$1,000,000 combined single limit",
+              "Workers Compensation": "Statutory limits"
+            },
+            "total_premium": "12500",
+            "carrier": "ABC Insurance Company",
+            "broker_name": "Smith Insurance Agency",
+            "broker_contact": "555-123-4567",
+            "certificate_holder": "XYZ Development Corp",
+            "policy_numbers": ["GL-2024-5678", "AL-2024-9012", "WC-2024-3456"],
+            "special_provisions": "Additional insured as required by contract",
+            "additional_insureds": ["XYZ Development Corp"]
+          }

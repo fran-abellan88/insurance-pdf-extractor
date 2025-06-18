@@ -56,7 +56,7 @@ async def health_check():
             },
             available_models=gemini_status.get("available_models", []),
             available_prompts=available_prompts,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.utcnow().isoformat(),
         )
 
     except Exception as e:
@@ -69,7 +69,7 @@ async def health_check():
             gemini_api={"status": "error", "models_available": 0, "test_response": None, "error": str(e)},
             available_models=[],
             available_prompts=[],
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.utcnow().isoformat(),
         )
 
 
@@ -99,7 +99,7 @@ async def readiness_check():
                 "error": gemini_status.get("error"),
             }, 503
 
-        return {"status": "ready", "timestamp": datetime.utcnow()}
+        return {"status": "ready", "timestamp": datetime.utcnow().isoformat()}
 
     except Exception as e:
         logger.error(f"Readiness check failed: {e}")
@@ -120,7 +120,7 @@ async def liveness_check():
         # This should always return 200 unless the service is completely broken
         return {
             "status": "alive",
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.utcnow().isoformat(),
             "uptime": "unknown",  # Could implement actual uptime tracking
         }
 
@@ -150,7 +150,7 @@ async def get_metrics():
                 "rate_limit": settings.rate_limit_requests,
             },
             "api": {"configured_keys": len(settings.api_key), "gemini_configured": bool(settings.gemini_api_key)},
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         return metrics

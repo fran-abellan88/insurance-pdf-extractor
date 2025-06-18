@@ -39,6 +39,11 @@ class ExtractionRequest(BaseModel):
         default=False, description="Whether to include detailed token usage metrics and cost estimates"
     )
 
+    include_page_sources: bool = Field(
+        default=False, description="Whether to include page source information for each extracted field"
+    )
+
+
     @field_validator("prompt_version")
     def validate_prompt_version(cls, v):
         """Validate prompt version format"""

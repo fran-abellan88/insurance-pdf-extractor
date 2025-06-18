@@ -4,13 +4,13 @@ Pydantic models for extracted data validation
 
 import re
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
 
-class WorkersCompensationData(BaseModel):
-    """Validation model for extracted Workers Compensation data"""
+class QuoteData(BaseModel):
+    """Validation model for extracted insurance quote data"""
 
     quote_number: str = Field(description="Unique quote number for the policy")
     policy_effective_date: str = Field(description="Policy effective date in MM/DD/YYYY format")
@@ -161,10 +161,107 @@ class WorkersCompensationData(BaseModel):
         return date_str
 
 
+class BinderData(BaseModel):
+    """Validation model for extracted Binder data"""
+
+    binder_number: str = Field(description="Unique binder identification number")
+    effective_date: str = Field(description="Date when coverage begins in MM/DD/YYYY format")
+    expiration_date: Optional[str] = Field(description="Date when coverage expires in MM/DD/YYYY format")
+    named_insured: str = Field(description="Name of the insured party")
+    named_insured_address: str = Field(description="Address of the insured party")
+    coverages: List[str] = Field(description="List of coverage types included")
+    coverage_limits: Optional[Dict[str, str]] = Field(
+        default_factory=dict, description="Coverage limits for each line of coverage"
+    )
+    total_premium: Optional[str] = Field(default="EMPTY VALUE", description="Total premium amount for all coverages")
+    carrier: str = Field(description="Insurance company providing the coverage")
+    broker_name: Optional[str] = Field(default="EMPTY VALUE", description="Name of the producing broker or agent")
+    broker_contact: Optional[str] = Field(default="EMPTY VALUE", description="Contact information for the broker")
+    certificate_holder: Optional[str] = Field(default="EMPTY VALUE", description="Entity that will receive the certificate")
+    policy_numbers: Optional[List[str]] = Field(
+        default_factory=list, description="List of underlying policy numbers if available"
+    )
+    special_provisions: Optional[str] = Field(
+        default="EMPTY VALUE", description="Any special terms, conditions, or endorsements"
+    )
+    additional_insureds: Optional[List[str]] = Field(
+        default_factory=list, description="List of additional insured parties if any"
+    )
+
+    @field_validator("effective_date", "expiration_date")
+    def validate_date_format(cls, v):
+        """Validate date format MM/DD/YYYY"""
+        if v and v != "EMPTY VALUE":
+            date_pattern = r"^\d{2}/\d{2}/\d{4}$"
+            if not re.match(date_pattern, v):
+                # Try to parse and reformat common date formats
+                v = cls._normalize_date(v)
+                if not re.match(date_pattern, v):
+                    raise ValueError(f"Date must be in MM/DD/YYYY format, got: {v}")
+        return v
+
+    @field_validator("binder_number")
+    def validate_binder_number(cls, v):
+        """Validate binder number is not empty"""
+        if not v or v.strip() == "":
+            raise ValueError("Binder number cannot be empty")
+        return v.strip()
+
+    @field_validator("named_insured", "named_insured_address", "carrier")
+    def validate_required_fields(cls, v):
+        """Validate required fields are not empty"""
+        if not v or v.strip() == "":
+            raise ValueError("This field is required and cannot be empty")
+        return v.strip()
+
+    @field_validator("total_premium")
+    def validate_currency_fields(cls, v):
+        """Validate currency fields"""
+        if v and v != "EMPTY VALUE":
+            # Remove common currency symbols and separators
+            cleaned = v.replace("$", "").replace(",", "").strip()
+            try:
+                float(cleaned)
+            except ValueError:
+                # If it's not a valid number, keep original value but add warning
+                pass
+        return v
+
+    @staticmethod
+    def _normalize_date(date_str: str) -> str:
+        """Normalize various date formats to MM/DD/YYYY"""
+        if not date_str or date_str == "EMPTY VALUE":
+            return date_str
+
+        # Remove extra whitespace
+        date_str = date_str.strip()
+
+        # Try to parse various formats
+        formats_to_try = [
+            "%m/%d/%Y",  # MM/DD/YYYY
+            "%m-%d-%Y",  # MM-DD-YYYY
+            "%Y-%m-%d",  # YYYY-MM-DD
+            "%d/%m/%Y",  # DD/MM/YYYY
+            "%B %d, %Y",  # Month DD, YYYY
+            "%b %d, %Y",  # Mon DD, YYYY
+        ]
+
+        for fmt in formats_to_try:
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                return dt.strftime("%m/%d/%Y")
+            except ValueError:
+                continue
+
+        # If no format matches, return original
+        return date_str
+
+
 class ExtractionResult(BaseModel):
     """Container for extraction results with validation info"""
 
-    data: WorkersCompensationData = Field(description="Validated extracted data")
+    data: Union[QuoteData, BinderData] = Field(description="Validated extracted data")
+    document_type: str = Field(description="Type of document that was processed")
     validation_errors: List[str] = Field(default_factory=list, description="List of validation errors encountered")
     warnings: List[str] = Field(default_factory=list, description="List of warnings during validation")
     raw_data: dict = Field(description="Original raw extracted data before validation")
@@ -180,7 +277,7 @@ class ExtractionResult(BaseModel):
         return len(self.warnings) > 0
 
 
-def validate_extracted_data(raw_data: dict) -> ExtractionResult:
+def validate_extracted_data(raw_data: dict, document_type: str = "quote") -> ExtractionResult:
     """
     Validate raw extracted data and return structured result
     """
@@ -188,8 +285,11 @@ def validate_extracted_data(raw_data: dict) -> ExtractionResult:
     warnings = []
 
     try:
-        # Attempt to create validated model
-        validated_data = WorkersCompensationData(**raw_data)
+        # Attempt to create validated model based on document type
+        if document_type == "binder":
+            validated_data = BinderData(**raw_data)
+        else:
+            validated_data = QuoteData(**raw_data)
 
         # Additional business logic validations
         if hasattr(validated_data, "policy_effective_date") and hasattr(validated_data, "policy_expiration_date"):
@@ -206,7 +306,7 @@ def validate_extracted_data(raw_data: dict) -> ExtractionResult:
                     warnings.append("Could not validate date relationship due to invalid date format")
 
         return ExtractionResult(
-            data=validated_data, validation_errors=validation_errors, warnings=warnings, raw_data=raw_data
+            data=validated_data, document_type=document_type, validation_errors=validation_errors, warnings=warnings, raw_data=raw_data
         )
 
     except Exception as e:
@@ -214,19 +314,33 @@ def validate_extracted_data(raw_data: dict) -> ExtractionResult:
 
         # Create a model with raw data for partial results
         try:
-            # Try to create model with minimal validation
-            partial_data = WorkersCompensationData.model_validate(raw_data)
+            # Try to create model with minimal validation based on document type
+            if document_type == "binder":
+                partial_data = BinderData.model_validate(raw_data)
+            else:
+                partial_data = QuoteData.model_validate(raw_data)
         except Exception as e2:
             print(e2)
-            # If that fails too, create empty model
-            partial_data = WorkersCompensationData(
-                quote_number="VALIDATION_FAILED",
-                policy_effective_date="EMPTY VALUE",
-                policy_expiration_date="EMPTY VALUE",
-                named_insured_name="VALIDATION_FAILED",
-                named_insured_address="VALIDATION_FAILED",
-            )
+            # If that fails too, create empty model based on document type
+            if document_type == "binder":
+                partial_data = BinderData(
+                    binder_number="VALIDATION_FAILED",
+                    effective_date="EMPTY VALUE",
+                    expiration_date="EMPTY VALUE",
+                    named_insured="VALIDATION_FAILED",
+                    named_insured_address="VALIDATION_FAILED",
+                    coverages=[],
+                    carrier="VALIDATION_FAILED",
+                )
+            else:
+                partial_data = QuoteData(
+                    quote_number="VALIDATION_FAILED",
+                    policy_effective_date="EMPTY VALUE",
+                    policy_expiration_date="EMPTY VALUE",
+                    named_insured_name="VALIDATION_FAILED",
+                    named_insured_address="VALIDATION_FAILED",
+                )
 
         return ExtractionResult(
-            data=partial_data, validation_errors=validation_errors, warnings=warnings, raw_data=raw_data
+            data=partial_data, document_type=document_type, validation_errors=validation_errors, warnings=warnings, raw_data=raw_data
         )

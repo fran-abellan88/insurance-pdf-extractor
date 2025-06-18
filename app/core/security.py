@@ -47,13 +47,11 @@ async def get_api_key(api_key: str = Security(api_key_header)) -> str:
     Dependency to validate API key from header
     """
     if not api_key:
-        api_key = "bla"
-        pass
-        # raise HTTPException(
-        #     status_code=status.HTTP_401_UNAUTHORIZED,
-        #     detail="API key required. Please provide X-API-Key header.",
-        #     headers={"WWW-Authenticate": "ApiKey"},
-        # )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required. Please provide X-API-Key header.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
 
     if not api_key_auth.validate_api_key(api_key):
         logger.warning(f"Invalid API key attempt: {api_key[:8]}...")

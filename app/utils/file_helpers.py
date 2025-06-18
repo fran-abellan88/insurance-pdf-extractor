@@ -7,7 +7,10 @@ import mimetypes
 from pathlib import Path
 from typing import Optional, Tuple
 
-import magic
+try:
+    import magic
+except ImportError:
+    magic = None
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +28,9 @@ def detect_file_type(file_content: bytes, filename: str) -> Tuple[str, bool]:
     """
     try:
         # Try to detect using python-magic (more reliable)
-        try:
-            import magic
-
+        if magic is not None:
             mime_type = magic.from_buffer(file_content, mime=True)
-        except ImportError:
+        else:
             # Fallback to mimetypes module
             mime_type, _ = mimetypes.guess_type(filename)
             if not mime_type:

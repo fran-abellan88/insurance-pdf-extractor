@@ -52,6 +52,9 @@ class ExtractionResponse(BaseModel):
     confidence_scores: Optional[Dict[str, float]] = Field(
         default=None, description="Confidence scores for each field (if requested)"
     )
+    page_sources: Optional[Dict[str, Optional[int]]] = Field(
+        default=None, description="Page source information for each field (if requested)"
+    )
     token_usage: Optional[TokenUsage] = Field(default=None, description="Token usage information (if requested)")
     warnings: Optional[List[str]] = Field(default=None, description="List of warnings during processing")
     failed_fields: Optional[List[str]] = Field(default=None, description="List of fields that failed extraction")
@@ -74,6 +77,9 @@ class PartialExtractionResponse(BaseModel):
     file_info: Optional[Dict[str, Any]] = Field(default=None, description="Information about the processed file")
     confidence_scores: Optional[Dict[str, float]] = Field(
         default=None, description="Confidence scores for each field (if requested)"
+    )
+    page_sources: Optional[Dict[str, Optional[int]]] = Field(
+        default=None, description="Page source information for each field (if requested)"
     )
     token_usage: Optional[TokenUsage] = Field(default=None, description="Token usage information (if requested)")
     warnings: Optional[List[str]] = Field(default=None, description="List of warnings during processing")
